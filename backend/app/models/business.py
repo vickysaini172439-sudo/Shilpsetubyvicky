@@ -18,3 +18,4 @@ class Business(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("User", back_populates="business")
+    products = relationship("Product", back_populates="business", cascade="all, delete-orphan")

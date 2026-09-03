@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.database.db import Base, engine
-from app.models import user, business  # noqa: F401  (import so tables register with Base)
-from app.routes import auth, users
+from app.models import user, business, product  # noqa: F401  (import so tables register with Base)
+from app.routes import auth, users, products
 
 app = FastAPI(title="ShilpSetu API", version="0.1.0")
 
@@ -19,12 +20,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Creates all database tables (users, businesses, ...) the first time
-# the backend starts, if they don't already exist yet.
+# Creates all database tables (users, businesses, products, ...) the
+# first time the backend starts, if they don't already exist yet.
 Base.metadata.create_all(bind=engine)
+
+# Makes anything saved in backend/uploads/ available at a public URL,
+# e.g. a file at uploads/products/abc.jpg becomes reachable at
+# http://localhost:8000/uploads/products/abc.jpg - this is how the
+# frontend displays product photos.
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(products.router)
 
 
 @app.get("/")
