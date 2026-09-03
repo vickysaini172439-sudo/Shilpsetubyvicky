@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database.db import Base
@@ -15,6 +15,14 @@ class Business(Base):
     location = Column(String, nullable=True)
     state = Column(String, nullable=True)
     slug = Column(String, unique=True, index=True, nullable=False)
+
+    # Digital storefront settings (Phase 10)
+    logo_url = Column(String, nullable=True)
+    whatsapp_number = Column(String, nullable=True)
+    instagram_url = Column(String, nullable=True)
+    facebook_url = Column(String, nullable=True)
+    is_published = Column(Boolean, default=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("User", back_populates="business")

@@ -14,11 +14,13 @@ import BusinessManager from './pages/BusinessManager.jsx'
 import Products from './pages/Products.jsx'
 import Digitalise from './pages/Digitalise.jsx'
 import Store from './pages/Store.jsx'
+import PublicStore from './pages/PublicStore.jsx'
 import MarketLinkage from './pages/MarketLinkage.jsx'
 import Profile from './pages/Profile.jsx'
 
 // Pages that show the app header + bottom navigation (the "logged in" shell).
-// Landing/Login/Register are full-screen without this chrome.
+// Landing/Login/Register/PublicStore are full-screen without this chrome -
+// PublicStore especially, since a visitor viewing it isn't logged in at all.
 const pageTitles = {
   '/dashboard': 'Dashboard',
   '/products': 'My Products',
@@ -27,7 +29,7 @@ const pageTitles = {
   '/pricing': 'Smart Pricing',
   '/business-manager': 'AI Business Manager',
   '/digitalise': 'Digitalise My Business',
-  '/store': 'My Digital Store',
+  '/my-store': 'My Digital Store',
   '/market-linkage': 'Market Opportunities',
   '/profile': 'Profile & Settings',
 }
@@ -60,6 +62,9 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
+      {/* Public storefront - anyone with the link/QR code can view this, no login needed */}
+      <Route path="/store/:slug" element={<PublicStore />} />
+
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/products" element={<Protected><Products /></Protected>} />
       <Route path="/photo-studio" element={<Protected><PhotoStudio /></Protected>} />
@@ -67,7 +72,7 @@ export default function App() {
       <Route path="/pricing" element={<Protected><Pricing /></Protected>} />
       <Route path="/business-manager" element={<Protected><BusinessManager /></Protected>} />
       <Route path="/digitalise" element={<Protected><Digitalise /></Protected>} />
-      <Route path="/store" element={<Protected><Store /></Protected>} />
+      <Route path="/my-store" element={<Protected><Store /></Protected>} />
       <Route path="/market-linkage" element={<Protected><MarketLinkage /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
     </Routes>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../services/AuthContext.jsx'
-import { listProducts } from '../services/api.js'
+import { listProducts, getReadiness } from '../services/api.js'
 
 const actions = [
   { to: '/products', label: 'Add Product', icon: '➕' },
@@ -9,23 +9,26 @@ const actions = [
   { to: '/catalogue', label: 'Create Catalogue', icon: '📝' },
   { to: '/pricing', label: 'Smart Pricing', icon: '💰' },
   { to: '/business-manager', label: 'AI Business Manager', icon: '💬' },
-  { to: '/store', label: 'My Digital Store', icon: '🏪' },
+  { to: '/digitalise', label: 'Digitalise My Business', icon: '🌐' },
+  { to: '/my-store', label: 'My Digital Store', icon: '🏪' },
   { to: '/market-linkage', label: 'Market Linkage', icon: '🔗' },
 ]
 
 export default function Dashboard() {
   const { user, token } = useAuth()
   const [stats, setStats] = useState({ total: 0, published: 0, draft: 0 })
+  const [readiness, setReadiness] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    listProducts(token)
-      .then((products) => {
+    Promise.all([listProducts(token), getReadiness(token)])
+      .then(([products, readinessData]) => {
         setStats({
           total: products.length,
           published: products.filter((p) => p.status === 'published').length,
           draft: products.filter((p) => p.status === 'draft').length,
         })
+        setReadiness(readinessData)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -55,10 +58,23 @@ export default function Dashboard() {
 
       <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
         <p className="text-sm text-gray-500 mb-1">Digital Readiness Score</p>
-        <p className="text-2xl font-bold text-terracotta">Coming in Phase 12</p>
-        <p className="text-xs text-gray-400 mt-1">
-          We'll calculate this once pricing, catalogue and storefront are built too.
-        </p>
+        <p className="text-3xl font-bold text-terracotta">{loading ? '–' : `${readiness?.score ?? 0}%`}</p>
+
+        {readiness && (
+          <div className="mt-3 space-y-1">
+            {readiness.checklist.map((c) => (
+              <p key={c.label} className="text-xs flex items-center gap-2">
+                <span>{c.done ? '✅' : '⬜'}</span>
+                <span className={c.done ? 'text-gray-500' : 'text-charcoal'}>{c.label}</span>
+              </p>
+            ))}
+          </div>
+        )}
+        {readiness?.next_steps?.length > 0 && (
+          <p className="text-xs text-gray-400 mt-3">
+            Complete these {readiness.next_steps.length} step(s) to improve your score.
+          </p>
+        )}
       </div>
 
       <h3 className="font-semibold text-charcoal mb-3">Quick Actions</h3>

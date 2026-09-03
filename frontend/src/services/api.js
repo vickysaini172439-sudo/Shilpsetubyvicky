@@ -33,7 +33,7 @@ async function request(path, { method = "GET", body, token } = {}) {
 // JSON - used for creating/updating products with a photo. We do NOT
 // set a Content-Type header ourselves: the browser sets the correct
 // "multipart/form-data; boundary=..." header automatically for FormData.
-async function requestForm(path, { method = "POST", formData, token } = {}) {
+export async function requestForm(path, { method = "POST", formData, token } = {}) {
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
 
@@ -148,4 +148,38 @@ export function sendBusinessMessage(payload, token) {
 export function getChatHistory(token, productId) {
   const query = productId ? `?product_id=${productId}` : ""
   return request(`/ai/business-advice/history${query}`, { token })
+}
+
+export function getMyStorefront(token) {
+  return request("/business/storefront", { token })
+}
+
+export function updateStorefront(payload, token) {
+  return request("/business/storefront", { method: "PUT", body: payload, token })
+}
+
+export function uploadLogo(file, token) {
+  const formData = new FormData()
+  formData.append("logo", file)
+  return requestForm("/business/logo", { method: "POST", formData, token })
+}
+
+export function getPublicStore(slug) {
+  return request(`/store/${slug}`)
+}
+
+export function storeQrUrl(slug) {
+  return `${BASE_URL}/store/${slug}/qr`
+}
+
+export function storePublicUrl(slug) {
+  return `${window.location.origin}/store/${slug}`
+}
+
+export function getReadiness(token) {
+  return request("/dashboard/readiness", { token })
+}
+
+export function getMarketOpportunities(token) {
+  return request("/market/opportunities", { token })
 }

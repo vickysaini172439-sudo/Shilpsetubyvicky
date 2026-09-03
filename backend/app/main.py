@@ -4,7 +4,10 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database.db import Base, engine, SessionLocal
 from app.models import user, business, product, pricing, market_data, chat_message  # noqa: F401
-from app.routes import auth, users, products, image, ai, pricing as pricing_routes, business_manager
+from app.routes import (
+    auth, users, products, image, ai,
+    pricing as pricing_routes, business_manager, store, dashboard, market,
+)
 from app.services.seed_service import seed_market_data_if_empty
 
 app = FastAPI(title="ShilpSetu API", version="0.1.0")
@@ -27,14 +30,11 @@ app.add_middleware(
 # don't already exist yet.
 Base.metadata.create_all(bind=engine)
 
-# Fills the sample/reference pricing table once, if it's empty, so Smart
-# Pricing has something to compare against from day one.
+# Fills the sample/reference pricing table once, if it's empty.
 with SessionLocal() as _db:
     seed_market_data_if_empty(_db)
 
-# Makes anything saved in backend/uploads/ available at a public URL,
-# e.g. a file at uploads/products/abc.jpg becomes reachable at
-# http://localhost:8000/uploads/products/abc.jpg
+# Makes anything saved in backend/uploads/ available at a public URL.
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(auth.router)
@@ -44,6 +44,10 @@ app.include_router(image.router)
 app.include_router(ai.router)
 app.include_router(pricing_routes.router)
 app.include_router(business_manager.router)
+app.include_router(store.business_router)
+app.include_router(store.store_router)
+app.include_router(dashboard.router)
+app.include_router(market.router)
 
 
 @app.get("/")

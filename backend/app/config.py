@@ -14,3 +14,7 @@ DEMO_MODE = os.environ.get("DEMO_MODE", "true").lower() == "true" or not AI_API_
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days - fine for a hackathon demo
+
+# The frontend's public URL - used to build the storefront link that
+# gets encoded into each business's QR code.
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
