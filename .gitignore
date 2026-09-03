@@ -1,0 +1,25 @@
+# Node
+node_modules/
+frontend/dist/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+backend/venv/
+
+# Env secrets
+.env
+backend/.env
+
+# Database
+*.db
+backend/app.db
+
+# Uploads (keep folder, ignore contents)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# OS/editor
+.DS_Store
+.vscode/
