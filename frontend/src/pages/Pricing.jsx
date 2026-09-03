@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import ProductPicker from '../components/ProductPicker.jsx'
-import { getPricingSuggestion, updateProduct } from '../services/api.js'
+import { getPricingSuggestion } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 
 export default function Pricing() {
