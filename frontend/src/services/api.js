@@ -31,9 +31,8 @@ async function request(path, { method = "GET", body, token } = {}) {
 
 // Same idea, but for requests that carry a file (FormData) instead of
 // JSON - used for creating/updating products with a photo. We do NOT
-// set a Content-Type header ourselves here: the browser sets the
-// correct "multipart/form-data; boundary=..." header automatically
-// when the body is a FormData object.
+// set a Content-Type header ourselves: the browser sets the correct
+// "multipart/form-data; boundary=..." header automatically for FormData.
 async function requestForm(path, { method = "POST", formData, token } = {}) {
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
@@ -56,7 +55,7 @@ async function requestForm(path, { method = "POST", formData, token } = {}) {
 }
 
 // Turns a relative image path from the backend (e.g. "/uploads/products/x.jpg")
-// into a full URL the <img> tag can load.
+// into a full URL an <img> tag can load.
 export function imageUrl(path) {
   if (!path) return null
   return `${BASE_URL}${path}`
@@ -97,4 +96,43 @@ export function updateProduct(id, formData, token) {
 
 export function deleteProduct(id, token) {
   return request(`/products/${id}`, { method: "DELETE", token })
+}
+
+export function getImageCapabilities(token) {
+  return request("/image/capabilities", { token })
+}
+
+// Image enhancement is different from requestForm() above because the
+// response is an image file (binary), not JSON - so we read it as a
+// "blob" instead, and pull our custom header out to know whether real
+// AI background removal ran, or Demo Mode.
+export async function enhanceImage(file, { removeBg, brightness, contrast }, token) {
+  const formData = new FormData()
+  formData.append("image", file)
+  formData.append("remove_bg", removeBg)
+  formData.append("brightness", brightness)
+  formData.append("contrast", contrast)
+
+  const headers = {}
+  if (token) headers["Authorization"] = `Bearer ${token}`
+
+  let res
+  try {
+    res = await fetch(`${BASE_URL}/image/enhance`, { method: "POST", headers, body: formData })
+  } catch (networkError) {
+    throw new Error("Could not reach the server. Is the backend running?")
+  }
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.detail || "Could not enhance image. Please try again.")
+  }
+
+  const usedRealAi = res.headers.get("X-Background-Removed-Real-Ai") === "true"
+  const blob = await res.blob()
+  return { blob, usedRealAi }
+}
+
+export function generateCatalogue(payload, token) {
+  return request("/ai/catalog", { method: "POST", body: payload, token })
 }

@@ -4,20 +4,22 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database.db import Base, engine
 from app.models import user, business, product  # noqa: F401  (import so tables register with Base)
-from app.routes import auth, users, products
+from app.routes import auth, users, products, image, ai
 
 app = FastAPI(title="ShilpSetu API", version="0.1.0")
 
 # CORS = Cross-Origin Resource Sharing. Our frontend (localhost:5173) and
 # backend (localhost:8000) are different "origins" from the browser's
 # point of view, so without this, the browser blocks the frontend from
-# calling the backend. This line explicitly allows it during development.
+# calling the backend. expose_headers is needed so the frontend can read
+# our custom "was this real AI or demo mode" header on image responses.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Background-Removed-Real-Ai"],
 )
 
 # Creates all database tables (users, businesses, products, ...) the
@@ -26,13 +28,14 @@ Base.metadata.create_all(bind=engine)
 
 # Makes anything saved in backend/uploads/ available at a public URL,
 # e.g. a file at uploads/products/abc.jpg becomes reachable at
-# http://localhost:8000/uploads/products/abc.jpg - this is how the
-# frontend displays product photos.
+# http://localhost:8000/uploads/products/abc.jpg
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(products.router)
+app.include_router(image.router)
+app.include_router(ai.router)
 
 
 @app.get("/")
