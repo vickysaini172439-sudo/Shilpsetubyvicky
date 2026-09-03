@@ -136,3 +136,16 @@ export async function enhanceImage(file, { removeBg, brightness, contrast }, tok
 export function generateCatalogue(payload, token) {
   return request("/ai/catalog", { method: "POST", body: payload, token })
 }
+
+export function getPricingSuggestion(payload, token) {
+  return request("/ai/pricing", { method: "POST", body: payload, token })
+}
+
+export function sendBusinessMessage(payload, token) {
+  return request("/ai/business-advice", { method: "POST", body: payload, token })
+}
+
+export function getChatHistory(token, productId) {
+  const query = productId ? `?product_id=${productId}` : ""
+  return request(`/ai/business-advice/history${query}`, { token })
+}

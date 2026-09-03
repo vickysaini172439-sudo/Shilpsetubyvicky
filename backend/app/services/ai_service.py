@@ -116,3 +116,122 @@ def _mock_catalogue(raw_text, product_name, category, material, craft_type) -> d
         "social_caption": f"✨ {fallback_name} — handcrafted, one-of-a-kind. #HandmadeInIndia #SupportArtisans",
         "ai_mode": "demo",
     }
+
+
+# ---------------------------------------------------------------------
+# AI Business Manager - answers an artisan's business questions using
+# their own business/product context, so it's not a generic chatbot.
+# ---------------------------------------------------------------------
+
+def business_advice(question: str, business_name: str, category: str, product_name: str, price, material: str) -> dict:
+    if AI_API_KEY and not DEMO_MODE:
+        try:
+            return _real_business_advice(question, business_name, category, product_name, price, material)
+        except Exception:
+            pass
+    return _mock_business_advice(question, business_name, category, product_name, price, material)
+
+
+def _real_business_advice(question, business_name, category, product_name, price, material) -> dict:
+    context = f"Business: '{business_name}', category: {category or 'not specified'}."
+    if product_name:
+        context += f" Currently discussing product: '{product_name}', material: {material or 'not specified'}, price: ₹{price if price else 'not set'}."
+
+    system_prompt = (
+        "You are a friendly, practical AI Business Manager helping a marginalized Indian artisan "
+        "grow their small handmade-goods business. Give short, concrete, encouraging advice in "
+        "simple language (avoid business jargon). " + context
+    )
+
+    response = requests.post(
+        f"{AI_API_BASE_URL}/chat/completions",
+        headers={"Authorization": f"Bearer {AI_API_KEY}", "Content-Type": "application/json"},
+        json={
+            "model": AI_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question},
+            ],
+            "temperature": 0.6,
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    reply = response.json()["choices"][0]["message"]["content"]
+    return {"reply": reply, "ai_mode": "real"}
+
+
+def _match_topic(question: str) -> str:
+    q = (question or "").lower()
+    if any(k in q for k in ["promot", "marketing", "advertis"]):
+        return "promote"
+    if any(k in q for k in ["customer", "buyer", "who"]):
+        return "customer"
+    if "packag" in q:
+        return "package"
+    if any(k in q for k in ["unique", "special", "stand out", "different"]):
+        return "unique"
+    if any(k in q for k in ["sell online", "marketplace", "website", "online"]):
+        return "sell_online"
+    if any(k in q for k in ["b2b", "wholesale", "bulk", "retailer"]):
+        return "b2b"
+    if any(k in q for k in ["price", "pricing", "cost"]):
+        return "price"
+    return "default"
+
+
+def _mock_business_advice(question, business_name, category, product_name, price, material) -> dict:
+    """
+    Keyword-matched, template-based advice built from the artisan's OWN
+    business/product data (not generic filler) - a reasonable stand-in
+    for a real AI reply when no API key is configured yet.
+    """
+    topic = _match_topic(question)
+    subject = product_name or f"your {(category or 'craft').lower()} products"
+
+    replies = {
+        "promote": (
+            f"To promote {subject}, try this: share clear photos on WhatsApp Status and Instagram with a short story "
+            "about how it's made, ask happy customers for photos/reviews you can repost, and put your Digital Store's "
+            "QR code on packaging and at local fairs so people can order again later."
+        ),
+        "customer": (
+            f"For {subject}, your best customers are usually: people who value handmade/authentic products (often "
+            "urban buyers aged 25-45 looking for home decor or gifts), local shops wanting unique stock, and "
+            "event/wedding planners looking for gifting items in bulk."
+        ),
+        "package": (
+            "Keep packaging simple but sturdy: a plain kraft box or cloth wrap suits the handmade feel, add a small "
+            "printed card with your business name and a one-line story, and cushion fragile items with paper or "
+            "cloth rather than plastic where you can — buyers notice eco-friendly touches."
+        ),
+        "unique": (
+            f"What makes {subject} stand out is the story: it's handmade by you"
+            + (f", using {material}" if material else "")
+            + " — not mass-produced. Lean into that in your descriptions and captions; buyers pay more for "
+            "authenticity, not just the object itself."
+        ),
+        "sell_online": (
+            "Start with what's easiest: share your Digital Store link (from 'My Digital Store') on WhatsApp and "
+            "Instagram, look into marketplaces like Amazon Karigar, Flipkart Samarth, or GeM if you qualify, and "
+            "always publish a listing with a clear photo, price and description first — an unfinished listing "
+            "rarely sells."
+        ),
+        "b2b": (
+            f"For B2B/wholesale buyers, prepare: consistent quality at volume, a simple price list with bulk "
+            f"discounts, clear delivery timelines, and your GST details if registered. Check the 'Market Linkage' "
+            f"page for buyer types that typically suit {(category or 'your category').lower()}."
+        ),
+        "price": (
+            "Use the Smart Pricing tool with your real material, labour and packaging costs instead of guessing — "
+            "it suggests a competitive range. As a rule of thumb, price to cover your costs plus at least 40-50% "
+            "margin for your time and profit."
+        ),
+        "default": (
+            f"I can help with promotion, packaging, pricing, finding customers, or preparing for B2B buyers for "
+            f"{subject} — try asking something like \"How should I promote this product?\" or use the suggested "
+            f"questions below."
+        ),
+    }
+
+    return {"reply": replies[topic], "ai_mode": "demo"}

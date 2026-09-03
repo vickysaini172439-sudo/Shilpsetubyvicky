@@ -8,3 +8,4 @@ python-multipart==0.0.9
 pydantic==2.9.2
 Pillow==10.4.0
 requests==2.32.3
+rembg==2.0.83
