@@ -1,15 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# This is the entry point of our backend. Running "uvicorn app.main:app --reload"
-# starts this file and turns it into a live web server.
+from app.database.db import Base, engine
+from app.models import user, business  # noqa: F401  (import so tables register with Base)
+from app.routes import auth, users
+
 app = FastAPI(title="ShilpSetu API", version="0.1.0")
 
 # CORS = Cross-Origin Resource Sharing. Our frontend (localhost:5173) and
-# backend (localhost:8000) are technically two different "origins" from the
-# browser's point of view, so without this, the browser blocks the frontend
-# from calling the backend. This line explicitly allows our frontend to talk
-# to our backend during local development.
+# backend (localhost:8000) are different "origins" from the browser's
+# point of view, so without this, the browser blocks the frontend from
+# calling the backend. This line explicitly allows it during development.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -17,6 +18,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Creates all database tables (users, businesses, ...) the first time
+# the backend starts, if they don't already exist yet.
+Base.metadata.create_all(bind=engine)
+
+app.include_router(auth.router)
+app.include_router(users.router)
 
 
 @app.get("/")

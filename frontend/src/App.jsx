@@ -1,6 +1,7 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import BottomNav from './components/BottomNav.jsx'
+import PrivateRoute from './components/PrivateRoute.jsx'
 
 import Landing from './pages/Landing.jsx'
 import Login from './pages/Login.jsx'
@@ -17,7 +18,7 @@ import MarketLinkage from './pages/MarketLinkage.jsx'
 import Profile from './pages/Profile.jsx'
 
 // Pages that show the app header + bottom navigation (the "logged in" shell).
-// Landing/Login/Register are full-screen without the app chrome.
+// Landing/Login/Register are full-screen without this chrome.
 const pageTitles = {
   '/dashboard': 'Dashboard',
   '/products': 'My Products',
@@ -43,6 +44,15 @@ function AppShell({ children }) {
   )
 }
 
+// Shorthand so every protected route doesn't repeat PrivateRoute+AppShell.
+function Protected({ children }) {
+  return (
+    <PrivateRoute>
+      <AppShell>{children}</AppShell>
+    </PrivateRoute>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -50,16 +60,16 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      <Route path="/dashboard" element={<AppShell><Dashboard /></AppShell>} />
-      <Route path="/products" element={<AppShell><Products /></AppShell>} />
-      <Route path="/photo-studio" element={<AppShell><PhotoStudio /></AppShell>} />
-      <Route path="/catalogue" element={<AppShell><Catalogue /></AppShell>} />
-      <Route path="/pricing" element={<AppShell><Pricing /></AppShell>} />
-      <Route path="/business-manager" element={<AppShell><BusinessManager /></AppShell>} />
-      <Route path="/digitalise" element={<AppShell><Digitalise /></AppShell>} />
-      <Route path="/store" element={<AppShell><Store /></AppShell>} />
-      <Route path="/market-linkage" element={<AppShell><MarketLinkage /></AppShell>} />
-      <Route path="/profile" element={<AppShell><Profile /></AppShell>} />
+      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/products" element={<Protected><Products /></Protected>} />
+      <Route path="/photo-studio" element={<Protected><PhotoStudio /></Protected>} />
+      <Route path="/catalogue" element={<Protected><Catalogue /></Protected>} />
+      <Route path="/pricing" element={<Protected><Pricing /></Protected>} />
+      <Route path="/business-manager" element={<Protected><BusinessManager /></Protected>} />
+      <Route path="/digitalise" element={<Protected><Digitalise /></Protected>} />
+      <Route path="/store" element={<Protected><Store /></Protected>} />
+      <Route path="/market-linkage" element={<Protected><MarketLinkage /></Protected>} />
+      <Route path="/profile" element={<Protected><Profile /></Protected>} />
     </Routes>
   )
 }
