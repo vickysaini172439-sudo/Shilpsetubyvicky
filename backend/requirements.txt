@@ -1,3 +1,5 @@
+# Local development dependencies. The deployed backend on Render
+# uses requirements-deploy.txt instead (same list without rembg).
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 sqlalchemy==2.0.35

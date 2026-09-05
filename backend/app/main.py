@@ -10,17 +10,32 @@ from app.routes import (
 )
 from app.services.seed_service import seed_market_data_if_empty
 from app.database.migrations import run_migrations
+from app.config import FRONTEND_URL
 
 app = FastAPI(title="ShilpSetu API", version="0.1.0")
 
-# CORS = Cross-Origin Resource Sharing. Our frontend (localhost:5180) and
-# backend (localhost:8010) are different "origins" from the browser's
-# point of view, so without this, the browser blocks the frontend from
-# calling the backend. expose_headers lets the frontend read our custom
-# "was this real AI or demo mode" header on image responses.
+# CORS = Cross-Origin Resource Sharing. Our frontend and backend live at
+# different addresses ("origins") from the browser's point of view, so
+# without this the browser blocks the frontend from calling the backend.
+#
+# Local development always works. The DEPLOYED frontend's address comes
+# from the FRONTEND_URL environment variable (set on Render to the Vercel
+# URL). The regex additionally allows Vercel's auto-generated preview
+# URLs - every branch and commit gets its own random *.vercel.app
+# subdomain, so they cannot be listed one by one.
+#
+# expose_headers lets the frontend read our custom "was this real AI or
+# demo mode" headers on image responses.
+allowed_origins = ["http://localhost:5180", "http://127.0.0.1:5180"]
+if FRONTEND_URL:
+    _deployed_origin = FRONTEND_URL.rstrip("/")
+    if _deployed_origin not in allowed_origins:
+        allowed_origins.append(_deployed_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5180", "http://127.0.0.1:5180"],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

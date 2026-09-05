@@ -1,0 +1,25 @@
+# Dependencies for the DEPLOYED backend (Render).
+#
+# This is requirements.txt MINUS rembg. Why:
+#   rembg[cpu] pulls in onnxruntime and downloads a ~176MB AI model on
+#   first use. Render's free tier gives the service 512MB of RAM, so
+#   loading that model would crash the server. rembg only powers the
+#   LOCAL background-removal fallback - on the deployed app, the real
+#   photo enhancement is done by OpenAI/Gemini instead, and the code
+#   already handles rembg being absent (it imports it lazily and reports
+#   "background removal unavailable" honestly rather than crashing).
+#
+# Keep this file in sync with requirements.txt when adding packages.
+# Local development still uses requirements.txt and keeps rembg.
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+sqlalchemy==2.0.35
+python-dotenv==1.0.1
+bcrypt==5.0.0
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.9
+pydantic==2.9.2
+Pillow>=10.4.0
+requests==2.32.3
+qrcode[pil]==7.4.2
+psycopg2-binary==2.9.12
