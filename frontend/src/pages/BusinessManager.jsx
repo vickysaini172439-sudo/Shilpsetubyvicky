@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { listProducts } from '../services/api.js'
+import VoiceInput from '../components/VoiceInput.jsx'
 import { sendBusinessMessage, getChatHistory } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 
@@ -13,7 +14,7 @@ const SUGGESTED_QUESTIONS = [
 ]
 
 export default function BusinessManager() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const [products, setProducts] = useState([])
   const [productId, setProductId] = useState('')
   const [messages, setMessages] = useState([])
@@ -47,7 +48,7 @@ export default function BusinessManager() {
     setLoading(true)
     try {
       const data = await sendBusinessMessage({ message, product_id: productId || undefined }, token)
-      setMessages((prev) => [...prev, { role: 'assistant', text: data.reply, aiMode: data.ai_mode }])
+      setMessages((prev) => [...prev, { role: 'assistant', text: data.reply, aiMode: data.ai_mode, aiProviderLabel: data.ai_provider_label }])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -86,8 +87,11 @@ export default function BusinessManager() {
               }`}
             >
               {m.text}
-              {m.aiMode === 'demo' && (
+              {m.role === 'assistant' && m.aiMode === 'demo' && (
                 <p className="text-[10px] text-sand font-semibold mt-1">Demo Mode reply</p>
+              )}
+              {m.role === 'assistant' && m.aiMode === 'real' && m.aiProviderLabel && (
+                <p className="text-[10px] text-gray-400 mt-1">Answered by {m.aiProviderLabel}</p>
               )}
             </div>
           </div>
@@ -110,10 +114,18 @@ export default function BusinessManager() {
 
         {error && <p className="text-red-600 text-xs mb-2">{error}</p>}
 
+        <VoiceInput
+          language={user?.preferred_language || 'Hindi'}
+          label="Ask by voice"
+          showLanguagePicker={false}
+          onTranscript={(t) => setInput((current) => (current ? `${current} ${t}` : t))}
+          className="mb-2"
+        />
+
         <div className="flex gap-2">
           <input
             className="flex-1 p-3 rounded-full border border-gray-300 text-base"
-            placeholder="Type your question..."
+            placeholder="Type or speak your question..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}

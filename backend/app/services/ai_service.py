@@ -2,22 +2,49 @@ import json
 import re
 import requests
 
-from app.config import AI_API_KEY, DEMO_MODE
+from app.config import CATALOGUE_AI_PROVIDER, BUSINESS_ADVICE_AI_PROVIDER, _resolve_text_provider
 
-# Points at any OpenAI-compatible "/v1/chat/completions" endpoint.
-# OpenAI itself works, but for a student project a free-tier provider
-# like Groq (groq.com) is a great option - same API shape, no cost to
-# start. Just set AI_API_KEY (and optionally AI_API_BASE_URL / AI_MODEL
-# below via app/config.py later) in backend/.env once you have a key.
-AI_API_BASE_URL = "https://api.openai.com/v1"
-AI_MODEL = "gpt-4o-mini"
+# Each text feature (catalogue, business advice) independently resolves
+# its own provider settings from app/config.py - see
+# CATALOGUE_AI_PROVIDER / BUSINESS_ADVICE_AI_PROVIDER there. Both Gemini
+# and OpenAI speak the same "/chat/completions" request shape, which is
+# exactly why this file never needs an if/else per provider - only the
+# base URL, key and model name change.
+PROVIDER_LABELS = {"gemini": "Google Gemini", "openai": "OpenAI"}
+
+# Languages we can write a catalogue in. "Hinglish" is Hindi written in
+# English letters (e.g. "Yeh handmade jute bag hai") - extremely common
+# in everyday Indian messaging, and much easier to read for someone who
+# speaks Hindi but is faster typing on an English keyboard.
+SUPPORTED_OUTPUT_LANGUAGES = {
+    "Hindi": "Hindi, written in Devanagari script",
+    "Hinglish": (
+        "Hinglish - conversational Hindi written using English (Roman) letters, "
+        "the way Indians write on WhatsApp. Do NOT use Devanagari script"
+    ),
+    "English": "English",
+    "Bengali": "Bengali, written in Bengali script",
+    "Tamil": "Tamil, written in Tamil script",
+    "Telugu": "Telugu, written in Telugu script",
+    "Marathi": "Marathi, written in Devanagari script",
+    "Gujarati": "Gujarati, written in Gujarati script",
+    "Punjabi": "Punjabi, written in Gurmukhi script",
+    "Kannada": "Kannada, written in Kannada script",
+    "Malayalam": "Malayalam, written in Malayalam script",
+    "Odia": "Odia, written in Odia script",
+}
+
+
+def _language_instruction(language: str) -> str:
+    return SUPPORTED_OUTPUT_LANGUAGES.get(language or "Hindi", SUPPORTED_OUTPUT_LANGUAGES["Hindi"])
 
 
 def _has_devanagari(text: str) -> bool:
     return bool(re.search(r"[ऀ-ॿ]", text or ""))
 
 
-def generate_catalogue(raw_text: str, product_name: str, category: str, material: str, craft_type: str) -> dict:
+def generate_catalogue(raw_text: str, product_name: str, category: str, material: str,
+                       craft_type: str, language: str = "Hindi") -> dict:
     """
     Turns what an artisan spoke/typed about their product into a
     structured, editable Hindi + English catalogue entry.
@@ -29,16 +56,19 @@ def generate_catalogue(raw_text: str, product_name: str, category: str, material
     crashing - this is what keeps the SIH demo working even with no
     internet connection at the venue.
     """
-    if AI_API_KEY and not DEMO_MODE:
+    base_url, api_key, model, provider, enabled = _resolve_text_provider(CATALOGUE_AI_PROVIDER)
+    if enabled:
         try:
-            return _real_catalogue(raw_text, product_name, category, material, craft_type)
+            return _real_catalogue(raw_text, product_name, category, material, craft_type,
+                                    language, base_url, api_key, model, provider)
         except Exception:
             pass
 
-    return _mock_catalogue(raw_text, product_name, category, material, craft_type)
+    return _mock_catalogue(raw_text, product_name, category, material, craft_type, language)
 
 
-def _real_catalogue(raw_text, product_name, category, material, craft_type) -> dict:
+def _real_catalogue(raw_text, product_name, category, material, craft_type, language,
+                     base_url, api_key, model, provider) -> dict:
     prompt = f"""You are helping a marginalized Indian artisan create a professional
 bilingual (Hindi + English) product catalogue entry for an e-commerce marketplace.
 
@@ -48,18 +78,23 @@ Category: {category or "not specified"}
 Material: {material or "not specified"}
 Craft type: {craft_type or "not specified"}
 
+The artisan's chosen language is: {_language_instruction(language)}.
+Write every "local language" field in that language, and never mix scripts.
+
 Return ONLY a valid JSON object with exactly these keys:
-title_english, title_hindi, short_description, description_english,
-description_hindi (in Hindi/Devanagari script), features (array of 3-5 short
-strings), material, category, use_cases (array of strings), target_customer
-(string), search_keywords (array of 5-8 strings), marketing_caption (string,
-under 25 words), social_caption (string, with 2-3 relevant hashtags)."""
+title_english, title_hindi (this is the LOCAL LANGUAGE title - write it in
+{language}), short_description, description_english, description_hindi (the
+LOCAL LANGUAGE description - write it in {language}), features (array of 3-5
+short strings), material, category, use_cases (array of strings),
+target_customer (string), search_keywords (array of 5-8 strings),
+marketing_caption (string, under 25 words), social_caption (string, with 2-3
+relevant hashtags)."""
 
     response = requests.post(
-        f"{AI_API_BASE_URL}/chat/completions",
-        headers={"Authorization": f"Bearer {AI_API_KEY}", "Content-Type": "application/json"},
+        f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
-            "model": AI_MODEL,
+            "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.5,
             "response_format": {"type": "json_object"},
@@ -70,10 +105,13 @@ under 25 words), social_caption (string, with 2-3 relevant hashtags)."""
     content = response.json()["choices"][0]["message"]["content"]
     data = json.loads(content)
     data["ai_mode"] = "real"
+    data["ai_provider"] = provider
+    data["ai_provider_label"] = PROVIDER_LABELS.get(provider, provider)
+    data["language"] = language
     return data
 
 
-def _mock_catalogue(raw_text, product_name, category, material, craft_type) -> dict:
+def _mock_catalogue(raw_text, product_name, category, material, craft_type, language="Hindi") -> dict:
     """
     A deterministic, template-based stand-in for a real AI call - not a
     real model, just Python string formatting. It reshapes what the
@@ -84,7 +122,16 @@ def _mock_catalogue(raw_text, product_name, category, material, craft_type) -> d
     was actually said, and leaves the other for the artisan to add.
     """
     raw_text = (raw_text or "").strip()
-    is_hindi_input = _has_devanagari(raw_text)
+
+    # Which field does the artisan's own text belong in? If they typed
+    # Devanagari it is clearly the local-language field. If they chose
+    # Hinglish, their Roman-letter text IS the local language, so it goes
+    # there too - this is the case that used to be handled wrongly.
+    if language == "Hinglish":
+        is_local_input = not _has_devanagari(raw_text) and bool(raw_text)
+    else:
+        is_local_input = _has_devanagari(raw_text)
+    is_hindi_input = is_local_input
 
     fallback_name = product_name or (raw_text[:40].strip() if raw_text else "Handcrafted Product")
     material_txt = material or "quality materials"
@@ -115,6 +162,7 @@ def _mock_catalogue(raw_text, product_name, category, material, craft_type) -> d
         "marketing_caption": f"Handmade with heart — {fallback_name}, straight from an Indian artisan's workshop.",
         "social_caption": f"✨ {fallback_name} — handcrafted, one-of-a-kind. #HandmadeInIndia #SupportArtisans",
         "ai_mode": "demo",
+        "language": language,
     }
 
 
@@ -123,31 +171,42 @@ def _mock_catalogue(raw_text, product_name, category, material, craft_type) -> d
 # their own business/product context, so it's not a generic chatbot.
 # ---------------------------------------------------------------------
 
-def business_advice(question: str, business_name: str, category: str, product_name: str, price, material: str) -> dict:
-    if AI_API_KEY and not DEMO_MODE:
+def business_advice(question: str, business_name: str, category: str, product_name: str, price,
+                    material: str, language: str = "English") -> dict:
+    base_url, api_key, model, provider, enabled = _resolve_text_provider(BUSINESS_ADVICE_AI_PROVIDER)
+    if enabled:
         try:
-            return _real_business_advice(question, business_name, category, product_name, price, material)
+            return _real_business_advice(question, business_name, category, product_name, price,
+                                          material, language, base_url, api_key, model, provider)
         except Exception:
             pass
     return _mock_business_advice(question, business_name, category, product_name, price, material)
 
 
-def _real_business_advice(question, business_name, category, product_name, price, material) -> dict:
+def _real_business_advice(question, business_name, category, product_name, price, material, language,
+                           base_url, api_key, model, provider) -> dict:
     context = f"Business: '{business_name}', category: {category or 'not specified'}."
     if product_name:
         context += f" Currently discussing product: '{product_name}', material: {material or 'not specified'}, price: ₹{price if price else 'not set'}."
 
     system_prompt = (
-        "You are a friendly, practical AI Business Manager helping a marginalized Indian artisan "
-        "grow their small handmade-goods business. Give short, concrete, encouraging advice in "
-        "simple language (avoid business jargon). " + context
+        "You are a friendly, practical AI Business Manager chatbot for a marginalized Indian "
+        "artisan running a small handmade-goods business. You can answer ANY question they ask "
+        "about: their PRODUCT (materials, quality, how to describe or improve it), their BUSINESS "
+        "(customers, promotion, packaging, selling online or B2B, growth), and their BUDGET/FINANCES "
+        "(pricing, costs, profit margin, saving, simple bookkeeping, affordable next steps). "
+        "Give short, concrete, encouraging advice in simple, everyday language - avoid business "
+        "jargon and avoid large financial words a first-time business owner may not know; explain "
+        "any term you must use in one plain phrase. Always reply entirely in "
+        f"{_language_instruction(language)}, since this is the language they are most comfortable "
+        "reading. Use rupee amounts (₹) for any money example, not dollars. " + context
     )
 
     response = requests.post(
-        f"{AI_API_BASE_URL}/chat/completions",
-        headers={"Authorization": f"Bearer {AI_API_KEY}", "Content-Type": "application/json"},
+        f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
-            "model": AI_MODEL,
+            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": question},
@@ -158,7 +217,103 @@ def _real_business_advice(question, business_name, category, product_name, price
     )
     response.raise_for_status()
     reply = response.json()["choices"][0]["message"]["content"]
-    return {"reply": reply, "ai_mode": "real"}
+    return {
+        "reply": reply,
+        "ai_mode": "real",
+        "ai_provider": provider,
+        "ai_provider_label": PROVIDER_LABELS.get(provider, provider),
+        "language": language,
+    }
+
+
+# ---------------------------------------------------------------------
+# Proactive Business Insight - the "smarter, not just reactive" AI. The
+# Business Manager chatbot above only speaks when the artisan asks it
+# something; this instead looks at their REAL data every time they open
+# the dashboard and surfaces ONE short, specific, actionable observation
+# without being asked - e.g. "you have 2 unpublished drafts" rather than
+# waiting for the artisan to think to ask "how am I doing?".
+# ---------------------------------------------------------------------
+
+def generate_business_insight(business_name: str, category: str, total_products: int,
+                               published_count: int, draft_count: int, avg_price,
+                               price_min, price_max, readiness_score: int,
+                               top_missing_step: str, language: str = "English") -> dict:
+    base_url, api_key, model, provider, enabled = _resolve_text_provider(BUSINESS_ADVICE_AI_PROVIDER)
+    if enabled:
+        try:
+            return _real_business_insight(
+                business_name, category, total_products, published_count, draft_count,
+                avg_price, price_min, price_max, readiness_score, top_missing_step,
+                language, base_url, api_key, model, provider,
+            )
+        except Exception:
+            pass
+    return _mock_business_insight(total_products, published_count, draft_count, readiness_score, top_missing_step)
+
+
+def _real_business_insight(business_name, category, total_products, published_count, draft_count,
+                            avg_price, price_min, price_max, readiness_score, top_missing_step,
+                            language, base_url, api_key, model, provider) -> dict:
+    price_line = (
+        f"Average published price: Rs.{avg_price:.0f} (range Rs.{price_min:.0f}-Rs.{price_max:.0f})."
+        if avg_price else "No prices set on published products yet."
+    )
+    data_summary = (
+        f"Business: '{business_name}', category: {category or 'not specified'}. "
+        f"{total_products} total product(s): {published_count} published, {draft_count} draft. "
+        f"{price_line} Digital readiness score: {readiness_score}/100. "
+        f"Most important thing still missing: {top_missing_step or 'nothing - fully set up'}."
+    )
+
+    system_prompt = (
+        "You are a proactive AI business coach for a small Indian artisan's handmade-goods "
+        "shop, embedded on their dashboard. You are given a snapshot of their REAL current "
+        "data. Without being asked a question, generate exactly ONE short, specific, "
+        "genuinely useful observation or suggestion based on THIS data - not generic advice. "
+        "Reference an actual number from the data (a count, a price, the score) so it feels "
+        "personal, not templated. Maximum 2 short sentences. Encouraging tone, plain language, "
+        "no jargon. Reply entirely in " + _language_instruction(language) + ". "
+        "Use Rs. for money. Data snapshot: " + data_summary
+    )
+
+    response = requests.post(
+        f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": model,
+            "messages": [{"role": "system", "content": system_prompt},
+                         {"role": "user", "content": "Give me today's insight."}],
+            "temperature": 0.7,
+            "max_tokens": 120,
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    tip = response.json()["choices"][0]["message"]["content"].strip()
+    return {
+        "tip": tip,
+        "ai_mode": "real",
+        "ai_provider": provider,
+        "ai_provider_label": PROVIDER_LABELS.get(provider, provider),
+    }
+
+
+def _mock_business_insight(total_products, published_count, draft_count, readiness_score, top_missing_step) -> dict:
+    """
+    Rule-based fallback so the dashboard never shows a broken/empty
+    insight card, even offline or before an AI key is configured - picks
+    the single highest-priority real issue from the artisan's own data.
+    """
+    if total_products == 0:
+        tip = "Add your first product to get started — even one good photo and a price is enough to open your store."
+    elif draft_count > 0:
+        tip = f"You have {draft_count} draft product{'s' if draft_count != 1 else ''} waiting — publish {'them' if draft_count != 1 else 'it'} so buyers can actually find {'them' if draft_count != 1 else 'it'}."
+    elif readiness_score < 100 and top_missing_step:
+        tip = f"You're at {readiness_score}% digital readiness — next up: {top_missing_step.lower()}."
+    else:
+        tip = f"Your store looks fully set up with {published_count} published product{'s' if published_count != 1 else ''} — now's a good time to focus on promotion and finding new buyers."
+    return {"tip": tip, "ai_mode": "demo"}
 
 
 def _match_topic(question: str) -> str:

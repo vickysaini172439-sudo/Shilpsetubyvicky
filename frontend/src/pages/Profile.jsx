@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../services/AuthContext.jsx'
 import { updateMe } from '../services/api.js'
 import { CRAFT_CATEGORIES, INDIAN_STATES, LANGUAGES } from '../constants.js'
@@ -101,9 +101,16 @@ export default function Profile() {
         </button>
       </form>
 
+      <Link
+        to="/help"
+        className="block w-full text-center border border-forest text-forest font-semibold py-3 rounded-full mt-4"
+      >
+        Help & Support
+      </Link>
+
       <button
         onClick={handleLogout}
-        className="w-full border border-terracotta text-terracotta font-semibold py-3 rounded-full mt-4"
+        className="w-full border border-terracotta text-terracotta font-semibold py-3 rounded-full mt-3"
       >
         Log Out
       </button>

@@ -14,7 +14,7 @@ from app.routes.deps import get_current_user
 router = APIRouter(prefix="/products", tags=["Products"])
 
 # Where uploaded product photos are saved on disk. main.py serves this
-# folder publicly at http://localhost:8000/uploads/... so the frontend
+# folder publicly at http://localhost:8010/uploads/... so the frontend
 # can display the images directly.
 UPLOAD_DIR = "uploads/products"
 os.makedirs(UPLOAD_DIR, exist_ok=True)

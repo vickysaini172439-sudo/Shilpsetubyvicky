@@ -1,0 +1,76 @@
+==== SHILPSETU AI KEY TEST ====
+
+Key found: AQ.Ab8...Vr8Q  (length 53)
+DEMO_MODE resolved to: False
+AI_ENABLED (can we call real AI?): True
+Text endpoint : https://generativelanguage.googleapis.com/v1beta/openai   model=gemini-2.5-flash
+Image endpoint: https://generativelanguage.googleapis.com/v1beta   model=gemini-3.1-flash-image
+
+---- 1. MODELS AVAILABLE TO THIS KEY ----
+HTTP 401
+{
+  "error": {
+    "code": 401,
+    "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+    "status": "UNAUTHENTICATED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "ACCESS_TOKEN_TYPE_UNSUPPORTED",
+        "metadata": {
+          "method": "google.ai.generativelanguage.v1beta.ModelService.ListModels",
+          "service": "generativelanguage.googleapis.com"
+        }
+      }
+    ]
+  }
+}
+
+
+---- 2. TEXT TEST (used by Catalogue + Business Manager) ----
+HTTP 401
+[{
+  "error": {
+    "code": 401,
+    "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+    "status": "UNAUTHENTICATED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "ACCESS_TOKEN_TYPE_UNSUPPORTED",
+        "metadata": {
+          "service": "generativelanguage.googleapis.com",
+          "method": "google.ai.generativelanguage.v1main.GenerativeService.GenerateContent"
+        }
+      }
+    ]
+  }
+}
+]
+RESULT: TEXT AI FAILED
+
+---- 3. IMAGE TEST (used by AI Photo Studio) ----
+HTTP 401
+{
+  "error": {
+    "code": 401,
+    "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+    "status": "UNAUTHENTICATED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "ACCESS_TOKEN_TYPE_UNSUPPORTED",
+        "metadata": {
+          "method": "google.ai.generativelanguage.v1beta.GenerativeService.GenerateContent",
+          "service": "generativelanguage.googleapis.com"
+        }
+      }
+    ]
+  }
+}
+
+RESULT: IMAGE AI FAILED
+
+---- SUGGESTED .env SETTINGS BASED ON WHAT YOUR KEY SUPPORTS ----
+text models seen : none detected
+image models seen: none detected

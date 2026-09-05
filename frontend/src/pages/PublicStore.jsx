@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getPublicStore, imageUrl } from '../services/api.js'
+import CategoryBanner from '../components/CategoryBanner.jsx'
+import { themeFor } from '../theme/categoryTheme.js'
 
 // This is the PUBLIC storefront page - anyone with the link or QR code
 // can open this without logging in. It's a different route (/store/:slug)
@@ -28,21 +30,36 @@ export default function PublicStore() {
   }
 
   if (!data) {
-    return <div className="min-h-screen bg-ivory flex items-center justify-center text-gray-500">Loading store...</div>
+    return (
+      <div className="min-h-screen bg-ivory">
+        <div className="skeleton h-40 w-full" />
+        <div className="p-4 space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-2xl shadow-sm p-3 flex gap-3">
+              <div className="skeleton w-16 h-16 rounded-xl flex-shrink-0" />
+              <div className="flex-1 py-1 space-y-2">
+                <div className="skeleton h-4 rounded-full w-2/3" />
+                <div className="skeleton h-3 rounded-full w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const { business, products } = data
 
   return (
     <div className="min-h-screen bg-ivory">
-      <div className="bg-forest text-white text-center py-8 px-4">
+      <CategoryBanner category={business.craft_category} className="text-white text-center py-8 px-4">
         {business.logo_url && (
           <img src={imageUrl(business.logo_url)} alt={business.business_name} className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-2 border-white" />
         )}
         <h1 className="text-2xl font-bold">{business.business_name}</h1>
         <p className="text-sm opacity-90">{business.craft_category}</p>
         {business.location && <p className="text-xs opacity-75 mt-1">{business.location}{business.state ? `, ${business.state}` : ''}</p>}
-      </div>
+      </CategoryBanner>
 
       {business.description && (
         <div className="p-5 text-center">
@@ -57,11 +74,16 @@ export default function PublicStore() {
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {products.map((p) => (
-              <div key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div key={p.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 {p.image_url ? (
                   <img src={imageUrl(p.image_url)} alt={p.name} className="w-full h-32 object-cover" />
                 ) : (
-                  <div className="w-full h-32 bg-ivory flex items-center justify-center text-3xl">📦</div>
+                  <div
+                    className="w-full h-32 flex items-center justify-center text-3xl"
+                    style={{ backgroundColor: themeFor(p.category || business.craft_category).color }}
+                  >
+                    {themeFor(p.category || business.craft_category).emoji}
+                  </div>
                 )}
                 <div className="p-3">
                   <p className="font-medium text-charcoal text-sm truncate">{p.name}</p>

@@ -20,7 +20,10 @@ export const INDIAN_STATES = [
   'Ladakh', 'Puducherry', 'Chandigarh', 'Andaman and Nicobar Islands',
 ]
 
+// 'Hinglish' = Hindi written in English letters ("Yeh handmade jute bag hai").
+// Very widely used in everyday Indian messaging, and far easier than
+// installing a Devanagari keyboard - so it is a first-class option here.
 export const LANGUAGES = [
-  'Hindi', 'English', 'Bengali', 'Tamil', 'Telugu', 'Marathi',
+  'Hindi', 'Hinglish', 'English', 'Bengali', 'Tamil', 'Telugu', 'Marathi',
   'Gujarati', 'Punjabi', 'Kannada', 'Malayalam', 'Odia',
 ]

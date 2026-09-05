@@ -5,6 +5,61 @@
 body {
   margin: 0;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background-color: #FAF7F0;
+  background-color: #FBE8DC; /* warm peach-cream - matches the 'ivory' token in tailwind.config.js */
   color: #252525;
+}
+
+/* Hide the scrollbar on horizontally-swipeable strips (category showcase,
+   quick-access circles, recent products reel) so they read as a swipeable
+   row of content instead of a boxy list with a visible scrollbar - closer
+   to how a social-feed app usually looks. The content is still fully
+   scrollable, just without the visible bar. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Continuously-scrolling "Discover" strip on the Dashboard - the feature
+   list is rendered twice back to back and slid left by exactly one set's
+   width (-50%), so the loop point is invisible and it never stops moving,
+   unlike the touch-scrollable strips above which only move when swiped. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee 26s linear infinite;
+  width: max-content;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* --- Premium polish: entrance animation + skeleton loaders ---------- */
+
+/* Gentle fade-up used on cards/sections as real data replaces loading
+   state, so content doesn't just "pop in" - a small, cheap touch that
+   reads as a more finished, native-app-like UI. */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+  animation: fadeInUp 0.35s ease-out both;
+}
+
+/* Shimmering grey block standing in for content that hasn't loaded yet,
+   instead of a plain "Loading..." line - used for stat cards, the AI
+   insight card, and product thumbnails while their real data is fetched. */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #e9e5df 25%, #f4f1ec 37%, #e9e5df 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
 }

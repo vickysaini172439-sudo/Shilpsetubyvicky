@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import VoiceInput from './VoiceInput.jsx'
 import { createProduct, updateProduct, imageUrl } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 import { CRAFT_CATEGORIES } from '../constants.js'
@@ -7,7 +8,8 @@ import { CRAFT_CATEGORIES } from '../constants.js'
 // product is passed in, its values pre-fill the form and Save calls
 // the update endpoint instead of create.
 export default function ProductForm({ existingProduct, onSaved, onCancel }) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const language = user?.preferred_language || 'Hindi'
   const [form, setForm] = useState({
     name: existingProduct?.name || '',
     name_hindi: existingProduct?.name_hindi || '',
@@ -25,6 +27,15 @@ export default function ProductForm({ existingProduct, onSaved, onCancel }) {
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
+  }
+
+  // Adds a spoken phrase to the end of a field instead of replacing it,
+  // so the artisan can dictate in several short bursts.
+  function appendSpoken(field, text) {
+    setForm((current) => ({
+      ...current,
+      [field]: current[field] ? `${current[field]} ${text}` : text,
+    }))
   }
 
   function handleImageChange(e) {
@@ -74,14 +85,47 @@ export default function ProductForm({ existingProduct, onSaved, onCancel }) {
       <label className={labelClass}>Product Name (English)</label>
       <input className={inputClass} name="name" value={form.name} onChange={handleChange} required />
 
-      <label className={labelClass}>Product Name (Hindi)</label>
-      <input className={inputClass} name="name_hindi" value={form.name_hindi} onChange={handleChange} placeholder="हिंदी में नाम (optional)" />
+      <label className={labelClass}>Product Name ({language})</label>
+      <input
+        className={inputClass}
+        name="name_hindi"
+        value={form.name_hindi}
+        onChange={handleChange}
+        placeholder="Speak it instead of typing (optional)"
+      />
+      <VoiceInput
+        language={language}
+        label="Speak the name"
+        showLanguagePicker={false}
+        onTranscript={(t) => appendSpoken('name_hindi', t)}
+        className="mt-2"
+      />
 
       <label className={labelClass}>Description (English)</label>
       <textarea className={inputClass} name="description_english" rows={3} value={form.description_english} onChange={handleChange} />
+      <VoiceInput
+        language="English"
+        label="Speak in English"
+        showLanguagePicker={false}
+        onTranscript={(t) => appendSpoken('description_english', t)}
+        className="mt-2"
+      />
 
-      <label className={labelClass}>Description (Hindi)</label>
-      <textarea className={inputClass} name="description_hindi" rows={3} value={form.description_hindi} onChange={handleChange} placeholder="हिंदी में विवरण (optional)" />
+      <label className={labelClass}>Description ({language})</label>
+      <textarea
+        className={inputClass}
+        name="description_hindi"
+        rows={3}
+        value={form.description_hindi}
+        onChange={handleChange}
+        placeholder="Speak it instead of typing (optional)"
+      />
+      <VoiceInput
+        language={language}
+        label="Speak the description"
+        onTranscript={(t) => appendSpoken('description_hindi', t)}
+        className="mt-2"
+      />
 
       <label className={labelClass}>Category</label>
       <select className={inputClass} name="category" value={form.category} onChange={handleChange}>

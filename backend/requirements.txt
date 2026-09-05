@@ -6,7 +6,8 @@ bcrypt==5.0.0
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.9
 pydantic==2.9.2
-Pillow==10.4.0
+Pillow>=10.4.0
 requests==2.32.3
-rembg==2.0.83
+rembg[cpu]==2.0.83
 qrcode[pil]==7.4.2
+psycopg2-binary==2.9.12

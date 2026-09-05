@@ -1,11 +1,13 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import BottomNav from './components/BottomNav.jsx'
+import AddFab from './components/AddFab.jsx'
 import PrivateRoute from './components/PrivateRoute.jsx'
 
 import Landing from './pages/Landing.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
+import ForgotPassword from './pages/ForgotPassword.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import PhotoStudio from './pages/PhotoStudio.jsx'
 import Catalogue from './pages/Catalogue.jsx'
@@ -17,6 +19,7 @@ import Store from './pages/Store.jsx'
 import PublicStore from './pages/PublicStore.jsx'
 import MarketLinkage from './pages/MarketLinkage.jsx'
 import Profile from './pages/Profile.jsx'
+import Help from './pages/Help.jsx'
 
 // Pages that show the app header + bottom navigation (the "logged in" shell).
 // Landing/Login/Register/PublicStore are full-screen without this chrome -
@@ -41,6 +44,7 @@ function AppShell({ children }) {
     <div className="min-h-screen bg-ivory pb-16">
       <Header title={title} />
       <main>{children}</main>
+      <AddFab />
       <BottomNav />
     </div>
   )
@@ -61,9 +65,13 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Public storefront - anyone with the link/QR code can view this, no login needed */}
       <Route path="/store/:slug" element={<PublicStore />} />
+
+      {/* Help & Support - reachable logged in or logged out, so it can't gate on Protected */}
+      <Route path="/help" element={<Help />} />
 
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/products" element={<Protected><Products /></Protected>} />

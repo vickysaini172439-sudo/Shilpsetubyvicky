@@ -14,7 +14,7 @@ with your laptop's WiFi turned off to confirm Demo Mode kicks in cleanly.
 
 ## The flow
 
-1. **Landing page** — open `localhost:5173`, show the "Get Started" screen.
+1. **Landing page** — open `localhost:5180`, show the "Get Started" screen.
    Say: *"This is ShilpSetu — a virtual business manager for artisans."*
 
 2. **Register** — fill in an artisan profile (name, phone, password,

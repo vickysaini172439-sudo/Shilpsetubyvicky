@@ -120,6 +120,13 @@ configured — a "Demo Mode" badge or note is shown in the UI instead of
 pretending the result is from a real model. This means the app is always
 demoable, even offline.
 
+## AI configuration
+
+One free Google AI Studio key (`AI_API_KEY` in `backend/.env`) powers all three
+AI features — the Photo Studio, catalogue generation and the Business Manager.
+Without it the app runs in honest Demo Mode and says so on screen. See
+SETUP_GUIDE.md for the two-minute setup.
+
 ## Future Improvements
 
 PostgreSQL/Supabase migration, real live market data, ONDC / government

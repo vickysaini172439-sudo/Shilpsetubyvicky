@@ -4,10 +4,15 @@
   "description": "Your Virtual Business Manager - turning your craft into a digital business.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#FAF7F0",
+  "background_color": "#FBE8DC",
   "theme_color": "#1F4D3A",
   "orientation": "portrait",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }

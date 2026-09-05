@@ -1,4 +1,4 @@
-export const BASE_URL = "http://localhost:8000"
+export const BASE_URL = "http://localhost:8010"
 
 // A small wrapper around the browser's built-in "fetch" function for
 // JSON requests. It attaches the login token when we have one, and
@@ -69,6 +69,27 @@ export function loginUser(payload) {
   return request("/auth/login", { method: "POST", body: payload })
 }
 
+// --- Forgot password (security question flow) ---
+
+// The list of questions an artisan can choose from while registering.
+// It comes from the backend so the two screens can never disagree.
+export function getSecurityQuestions() {
+  return request("/auth/security-questions")
+}
+
+// Step 1: give a phone number, get back that account's chosen question.
+export function requestSecurityQuestion(phone) {
+  return request("/auth/forgot-password", { method: "POST", body: { phone } })
+}
+
+// Step 2: answer the question and set a new password.
+export function resetPassword({ phone, answer, new_password }) {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: { phone, answer, new_password },
+  })
+}
+
 export function getMe(token) {
   return request("/users/me", { token })
 }
@@ -102,16 +123,28 @@ export function getImageCapabilities(token) {
   return request("/image/capabilities", { token })
 }
 
+// Which real AI provider (Gemini / OpenAI / none) is configured for the
+// catalogue and the AI Business Manager, so the UI can be honest about it.
+export function getTextCapabilities(token) {
+  return request("/ai/text-capabilities", { token })
+}
+
 // Image enhancement is different from requestForm() above because the
 // response is an image file (binary), not JSON - so we read it as a
 // "blob" instead, and pull our custom header out to know whether real
 // AI background removal ran, or Demo Mode.
-export async function enhanceImage(file, { removeBg, brightness, contrast }, token) {
+export async function enhanceImage(
+  file,
+  { engine = "auto", removeBg = false, brightness = 1.15, contrast = 1.15, instruction = "" },
+  token
+) {
   const formData = new FormData()
   formData.append("image", file)
+  formData.append("engine", engine)
   formData.append("remove_bg", removeBg)
   formData.append("brightness", brightness)
   formData.append("contrast", contrast)
+  formData.append("instruction", instruction)
 
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
@@ -128,9 +161,13 @@ export async function enhanceImage(file, { removeBg, brightness, contrast }, tok
     throw new Error(data?.detail || "Could not enhance image. Please try again.")
   }
 
+  // The backend tells us honestly which engine actually ran, so the
+  // screen never claims "AI" when it quietly fell back to filters.
   const usedRealAi = res.headers.get("X-Background-Removed-Real-Ai") === "true"
+  const engineUsed = res.headers.get("X-Enhance-Engine") || "basic"
+  const note = res.headers.get("X-Enhance-Note") || ""
   const blob = await res.blob()
-  return { blob, usedRealAi }
+  return { blob, usedRealAi, engineUsed, note }
 }
 
 export function generateCatalogue(payload, token) {
@@ -178,6 +215,12 @@ export function storePublicUrl(slug) {
 
 export function getReadiness(token) {
   return request("/dashboard/readiness", { token })
+}
+
+// The proactive AI tip on the dashboard - unprompted, based on the
+// artisan's real current data (see backend /ai/business-insight).
+export function getBusinessInsight(token) {
+  return request("/ai/business-insight", { token })
 }
 
 export function getMarketOpportunities(token) {

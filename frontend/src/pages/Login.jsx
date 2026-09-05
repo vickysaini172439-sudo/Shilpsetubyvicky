@@ -41,6 +41,12 @@ export default function Login() {
         <label className="block text-sm font-medium text-charcoal mb-1 mt-4">Password</label>
         <input className={inputClass} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
 
+        <div className="text-right mt-2">
+          <Link to="/forgot-password" className="text-sm text-forest underline">
+            Forgot password?
+          </Link>
+        </div>
+
         {error && <p className="text-red-600 text-sm mt-4">{error}</p>}
 
         <button

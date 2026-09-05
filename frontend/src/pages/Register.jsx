@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { registerUser } from '../services/api.js'
+import { registerUser, getSecurityQuestions } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 import { CRAFT_CATEGORIES, INDIAN_STATES, LANGUAGES } from '../constants.js'
 
@@ -10,6 +10,8 @@ const emptyForm = {
   email: '',
   password: '',
   preferred_language: 'Hindi',
+  security_question: '',
+  security_answer: '',
   business_name: '',
   craft_category: CRAFT_CATEGORIES[0],
   description: '',
@@ -21,8 +23,21 @@ export default function Register() {
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [questions, setQuestions] = useState([])
+  const [questionsError, setQuestionsError] = useState('')
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  // Load the security questions from the backend when the page opens, and
+  // pre-select the first one so the field is never left empty by accident.
+  useEffect(() => {
+    getSecurityQuestions()
+      .then((data) => {
+        setQuestions(data.questions)
+        setForm((f) => (f.security_question ? f : { ...f, security_question: data.questions[0].id }))
+      })
+      .catch((err) => setQuestionsError(err.message))
+  }, [])
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -34,6 +49,16 @@ export default function Register() {
 
     if (form.password.length < 6) {
       setError('Password must be at least 6 characters.')
+      return
+    }
+
+    if (!form.security_question) {
+      setError('Please choose a security question.')
+      return
+    }
+
+    if (form.security_answer.trim().length < 2) {
+      setError('Please write the answer to your security question.')
       return
     }
 
@@ -78,6 +103,56 @@ export default function Register() {
         <select className={inputClass} name="preferred_language" value={form.preferred_language} onChange={handleChange}>
           {LANGUAGES.map((lang) => <option key={lang} value={lang}>{lang}</option>)}
         </select>
+
+        <hr className="my-6 border-gray-200" />
+        <h2 className="text-lg font-semibold text-forest mb-1">Security Question</h2>
+        <p className="text-sm text-gray-600 mb-1">
+          If you ever forget your password, we will ask you this question to
+          make sure it is really you. Choose one you will always remember.
+        </p>
+
+        {questionsError && (
+          <p className="text-red-600 text-sm mt-2">
+            Could not load the security questions. {questionsError}
+          </p>
+        )}
+
+        <label className={labelClass}>Choose your question</label>
+        <select
+          className={inputClass}
+          name="security_question"
+          value={form.security_question}
+          onChange={handleChange}
+          required
+        >
+          {questions.length === 0 && <option value="">Loading questions...</option>}
+          {questions.map((q) => (
+            <option key={q.id} value={q.id}>
+              {q.question_en}
+            </option>
+          ))}
+        </select>
+
+        {/* Show the Hindi version of whichever question is selected, so an
+            artisan who reads Hindi more comfortably still understands it. */}
+        {questions.find((q) => q.id === form.security_question) && (
+          <p className="text-sm text-gray-500 mt-1">
+            {questions.find((q) => q.id === form.security_question).question_hi}
+          </p>
+        )}
+
+        <label className={labelClass}>Your answer</label>
+        <input
+          className={inputClass}
+          name="security_answer"
+          value={form.security_answer}
+          onChange={handleChange}
+          placeholder="Write your answer here"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Capital letters and extra spaces do not matter. Keep this answer private.
+        </p>
 
         <hr className="my-6 border-gray-200" />
         <h2 className="text-lg font-semibold text-forest mb-2">Your Business</h2>

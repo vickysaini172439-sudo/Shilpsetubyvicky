@@ -9,6 +9,10 @@ class RegisterRequest(BaseModel):
     preferred_language: str = "Hindi"
     password: str = Field(min_length=6)
 
+    # Lets the artisan recover the account if they forget their password.
+    security_question: str
+    security_answer: str = Field(min_length=2)
+
     business_name: str
     craft_category: str
     description: Optional[str] = None
@@ -61,3 +65,22 @@ class UpdateProfileRequest(BaseModel):
     description: Optional[str] = None
     location: Optional[str] = None
     state: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Step 1: the artisan tells us their phone number, and we tell them
+    which security question they chose when registering."""
+    phone: str
+
+
+class SecurityQuestionResponse(BaseModel):
+    question_id: str
+    question_en: str
+    question_hi: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Step 2: they answer the question and set a new password."""
+    phone: str
+    answer: str
+    new_password: str = Field(min_length=6)

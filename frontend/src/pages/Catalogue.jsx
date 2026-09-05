@@ -1,51 +1,25 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import ProductPicker from '../components/ProductPicker.jsx'
+import VoiceInput from '../components/VoiceInput.jsx'
 import { generateCatalogue, updateProduct } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 
-const SUPPORTS_SPEECH =
-  typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
-
 export default function Catalogue() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const language = user?.preferred_language || 'Hindi'
+
   const [product, setProduct] = useState(null)
   const [rawText, setRawText] = useState('')
-  const [listening, setListening] = useState(false)
-  const [speechLang, setSpeechLang] = useState('hi-IN')
-  const recognitionRef = useRef(null)
 
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
-  function startListening() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) return
-
-    const recognition = new SpeechRecognition()
-    recognition.lang = speechLang
-    recognition.continuous = true
-    recognition.interimResults = true
-
-    recognition.onresult = (event) => {
-      let transcript = ''
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
-      setRawText(transcript)
-    }
-    recognition.onerror = () => setListening(false)
-    recognition.onend = () => setListening(false)
-
-    recognition.start()
-    recognitionRef.current = recognition
-    setListening(true)
-  }
-
-  function stopListening() {
-    recognitionRef.current?.stop()
-    setListening(false)
+  // Speech arrives phrase by phrase, so we add to what is already there
+  // instead of overwriting it.
+  function appendSpoken(text) {
+    setRawText((current) => (current ? `${current} ${text}` : text))
   }
 
   async function handleGenerate() {
@@ -63,6 +37,7 @@ export default function Catalogue() {
           category: product?.category,
           material: product?.material,
           craft_type: product?.craft_type,
+          language,
         },
         token
       )
@@ -115,29 +90,15 @@ export default function Catalogue() {
       {product && (
         <div className="p-5">
           <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
-            <div className="flex gap-2 mb-3">
-              <select
-                className="p-2 rounded-lg border border-gray-300 text-sm"
-                value={speechLang}
-                onChange={(e) => setSpeechLang(e.target.value)}
-              >
-                <option value="hi-IN">Hindi</option>
-                <option value="en-IN">English</option>
-              </select>
-
-              {SUPPORTS_SPEECH ? (
-                <button
-                  onClick={listening ? stopListening : startListening}
-                  className={`flex-1 rounded-full font-semibold py-2 ${listening ? 'bg-red-500 text-white' : 'bg-forest text-white'}`}
-                >
-                  {listening ? '⏹ Stop Recording' : '🎙️ Speak About Your Product'}
-                </button>
-              ) : (
-                <p className="text-xs text-gray-500 flex-1 self-center">
-                  Voice input isn't supported in this browser — please type instead.
-                </p>
-              )}
-            </div>
+            <p className="text-sm font-medium text-charcoal mb-2">
+              🎙️ Speak about your product — no typing needed
+            </p>
+            <VoiceInput
+              language={language}
+              label="Speak About Your Product"
+              onTranscript={appendSpoken}
+              className="mb-3"
+            />
 
             <label className={labelClass}>⌨️ Type About Your Product</label>
             <textarea
@@ -145,7 +106,7 @@ export default function Catalogue() {
               rows={4}
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
-              placeholder="Describe your product in your own words (Hindi or English)..."
+              placeholder="Or type here in Hindi, Hinglish or English..."
             />
 
             {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
@@ -164,26 +125,26 @@ export default function Catalogue() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-forest">Review &amp; Edit</h3>
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${result.ai_mode === 'real' ? 'bg-forest text-white' : 'bg-sand text-charcoal'}`}>
-                  {result.ai_mode === 'real' ? 'AI Generated' : 'Demo Mode'}
+                  {result.ai_mode === 'real' ? `${result.ai_provider_label || 'AI'} Generated` : 'Demo Mode'}
                 </span>
               </div>
               {result.ai_mode !== 'real' && (
                 <p className="text-xs text-gray-500 mb-3">
                   No AI API key is configured yet, so this is a template-based draft, not a real
-                  AI translation — please review the Hindi/English text carefully before publishing.
+                  AI translation — please review the text carefully before publishing.
                 </p>
               )}
 
               <label className={labelClass}>Title (English)</label>
               <input className={inputClass} value={result.title_english || ''} onChange={(e) => updateField('title_english', e.target.value)} />
 
-              <label className={labelClass}>Title (Hindi)</label>
+              <label className={labelClass}>Title ({language})</label>
               <input className={inputClass} value={result.title_hindi || ''} onChange={(e) => updateField('title_hindi', e.target.value)} />
 
               <label className={labelClass}>Description (English)</label>
               <textarea className={inputClass} rows={3} value={result.description_english || ''} onChange={(e) => updateField('description_english', e.target.value)} />
 
-              <label className={labelClass}>Description (Hindi)</label>
+              <label className={labelClass}>Description ({language})</label>
               <textarea className={inputClass} rows={3} value={result.description_hindi || ''} onChange={(e) => updateField('description_hindi', e.target.value)} />
 
               <label className={labelClass}>Key Features</label>
