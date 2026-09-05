@@ -1,10 +1,19 @@
 // Where the backend lives.
 //   - Local development: falls back to the FastAPI server on port 8010.
-//   - Deployed (Vercel): VITE_API_URL is set in the Vercel project's
-//     Environment Variables to the Render backend's public URL.
+//   - Deployed (Vercel): VITE_API_URL comes from frontend/.env.production,
+//     which points at the Render backend's public URL.
 // Vite replaces import.meta.env.VITE_API_URL at BUILD time, so changing
-// it in Vercel requires a redeploy to take effect - it is not read live.
+// it requires a redeploy to take effect - it is not read live.
 export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8010"
+
+// Shown whenever the backend cannot be reached at all. The hosted
+// backend runs on Render's free tier, which puts the server to sleep
+// after 15 minutes of no traffic and takes roughly a minute to wake up
+// again - so "cannot reach" very often just means "still waking up",
+// not "broken". Saying so plainly stops that looking like a crash.
+const OFFLINE_MESSAGE =
+  "Could not reach the server. If the app has not been used for a while, " +
+  "the server may be waking up - please wait about a minute and try again."
 
 // A small wrapper around the browser's built-in "fetch" function for
 // JSON requests. It attaches the login token when we have one, and
@@ -22,7 +31,7 @@ async function request(path, { method = "GET", body, token } = {}) {
       body: body ? JSON.stringify(body) : undefined,
     })
   } catch (networkError) {
-    throw new Error("Could not reach the server. Is the backend running?")
+    throw new Error(OFFLINE_MESSAGE)
   }
 
   const data = await res.json().catch(() => null)
@@ -47,7 +56,7 @@ export async function requestForm(path, { method = "POST", formData, token } = {
   try {
     res = await fetch(`${BASE_URL}${path}`, { method, headers, body: formData })
   } catch (networkError) {
-    throw new Error("Could not reach the server. Is the backend running?")
+    throw new Error(OFFLINE_MESSAGE)
   }
 
   const data = await res.json().catch(() => null)
@@ -159,7 +168,7 @@ export async function enhanceImage(
   try {
     res = await fetch(`${BASE_URL}/image/enhance`, { method: "POST", headers, body: formData })
   } catch (networkError) {
-    throw new Error("Could not reach the server. Is the backend running?")
+    throw new Error(OFFLINE_MESSAGE)
   }
 
   if (!res.ok) {
