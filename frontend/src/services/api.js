@@ -1,4 +1,10 @@
-export const BASE_URL = "http://localhost:8010"
+// Where the backend lives.
+//   - Local development: falls back to the FastAPI server on port 8010.
+//   - Deployed (Vercel): VITE_API_URL is set in the Vercel project's
+//     Environment Variables to the Render backend's public URL.
+// Vite replaces import.meta.env.VITE_API_URL at BUILD time, so changing
+// it in Vercel requires a redeploy to take effect - it is not read live.
+export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8010"
 
 // A small wrapper around the browser's built-in "fetch" function for
 // JSON requests. It attaches the login token when we have one, and
