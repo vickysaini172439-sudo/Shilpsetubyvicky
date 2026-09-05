@@ -23,3 +23,9 @@ backend/uploads/*
 # OS/editor
 .DS_Store
 .vscode/
+
+# Scratch/debug files - never meant to be tracked
+*.url
+ai_report.txt
+backend_report.txt
+_git_export*.json
