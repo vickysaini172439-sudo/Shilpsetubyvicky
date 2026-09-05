@@ -43,7 +43,14 @@ function AppShell({ children }) {
   return (
     <div className="min-h-screen bg-ivory pb-16">
       <Header title={title} />
-      <main>{children}</main>
+      {/* Keyed on the path so React treats each screen as a new element and
+          replays the entrance animation on every navigation. Only <main>
+          animates - the header, bottom nav and add button deliberately stay
+          still, so the chrome feels fixed and only the content moves, the
+          way a native app behaves. */}
+      <main key={location.pathname} className="page-in">
+        {children}
+      </main>
       <AddFab />
       <BottomNav />
     </div>
@@ -65,7 +72,7 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Public storefront - anyone with the link/QR code can view this, no login needed */}
       <Route path="/store/:slug" element={<PublicStore />} />

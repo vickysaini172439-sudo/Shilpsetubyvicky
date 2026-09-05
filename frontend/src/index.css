@@ -63,3 +63,193 @@ body {
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
+
+/* ===================================================================
+   MOTION SYSTEM
+   ===================================================================
+   One shared set of timings and easings, so every screen animates with
+   the same "personality" instead of each page inventing its own. The
+   easing below is a gentle deceleration curve - things arrive quickly
+   then settle, which reads as responsive rather than sluggish. Keep
+   durations short (under ~450ms): on a low-end Android phone, long
+   animations feel like the app is lagging, not like it is polished.
+   =================================================================== */
+
+:root {
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 180ms;
+  --dur-base: 320ms;
+  --dur-slow: 460ms;
+}
+
+/* --- Page transition ------------------------------------------------
+   Applied to a screen's root element (or the <main> inside the logged-in
+   shell). Because React unmounts the old page and mounts the new one on
+   every navigation, this animation runs by itself on arrival - no
+   animation library needed. The slight upward drift gives a sense of
+   moving forward through the app. */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-in {
+  animation: pageIn var(--dur-base) var(--ease-out-soft) both;
+}
+
+/* --- Staggered children ---------------------------------------------
+   Put .stagger on a container and its direct children arrive one after
+   another instead of all at once. Used on the login/register forms so
+   the fields cascade in. Capped at 12 children - anything beyond that
+   simply appears with the last delay, which is the right call anyway:
+   a 20-field cascade would keep the user waiting. */
+.stagger > * {
+  animation: fadeInUp var(--dur-slow) var(--ease-out-soft) both;
+}
+.stagger > *:nth-child(1)  { animation-delay: 0.04s; }
+.stagger > *:nth-child(2)  { animation-delay: 0.08s; }
+.stagger > *:nth-child(3)  { animation-delay: 0.12s; }
+.stagger > *:nth-child(4)  { animation-delay: 0.16s; }
+.stagger > *:nth-child(5)  { animation-delay: 0.20s; }
+.stagger > *:nth-child(6)  { animation-delay: 0.24s; }
+.stagger > *:nth-child(7)  { animation-delay: 0.28s; }
+.stagger > *:nth-child(8)  { animation-delay: 0.32s; }
+.stagger > *:nth-child(9)  { animation-delay: 0.36s; }
+.stagger > *:nth-child(10) { animation-delay: 0.40s; }
+.stagger > *:nth-child(11) { animation-delay: 0.44s; }
+.stagger > *:nth-child(n+12) { animation-delay: 0.48s; }
+
+/* --- Touch feedback --------------------------------------------------
+   A button that visibly reacts the instant it is pressed feels far more
+   responsive than one that waits for the network to answer. This matters
+   most on the hosted app, where the server can take a moment to wake up. */
+.press {
+  transition: transform var(--dur-fast) var(--ease-out-soft),
+              box-shadow var(--dur-fast) var(--ease-out-soft),
+              filter var(--dur-fast) var(--ease-out-soft);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(0.95);
+}
+.press:disabled {
+  cursor: not-allowed;
+}
+
+/* --- Form fields -----------------------------------------------------
+   A clear, high-contrast focus state. This is an accessibility feature as
+   much as a visual one: someone navigating by keyboard, or an artisan
+   using the app in bright sunlight, needs to see unambiguously which box
+   they are typing into. */
+.field {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border-radius: 0.625rem;
+  border: 1px solid #d8cfc4;
+  background: #ffffff;
+  color: #252525;
+  transition: border-color var(--dur-fast) ease,
+              box-shadow var(--dur-fast) ease;
+}
+.field:focus {
+  outline: none;
+  border-color: #1F4D3A;
+  box-shadow: 0 0 0 3px rgba(31, 77, 58, 0.15);
+}
+.field::placeholder {
+  color: #a89e93;
+}
+
+/* --- Inline spinner --------------------------------------------------
+   Shown inside a button while a request is in flight, so "Logging in..."
+   is visibly *working* rather than looking frozen. */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: -0.125em;
+}
+
+/* --- Decorative craft pattern ---------------------------------------
+   A woven-cloth texture built purely from CSS gradients: two sets of
+   diagonal threads crossing each other, the way warp and weft cross on a
+   loom. Costs nothing to download and scales to any screen, unlike a
+   background photograph. Kept very low contrast so text stays readable
+   on top of it. */
+.craft-weave {
+  background-color: #1F4D3A;
+  background-image:
+    repeating-linear-gradient(45deg,  rgba(214, 168, 95, 0.10) 0 2px, transparent 2px 12px),
+    repeating-linear-gradient(-45deg, rgba(201, 107, 75, 0.12) 0 2px, transparent 2px 12px);
+}
+
+/* Slow drift across the woven panel, so the header feels alive rather
+   than static. Deliberately very slow (28s) and tiny in travel - motion
+   you notice only if you look for it. */
+@keyframes weaveDrift {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 48px 48px, -48px 48px; }
+}
+.craft-weave-animated {
+  animation: weaveDrift 28s linear infinite;
+}
+
+/* --- SVG stroke draw-on ----------------------------------------------
+   Used by the logo mark in components/CraftArt.jsx: the strokes appear
+   to be sketched rather than simply fading in. The dash length only has
+   to be larger than the real path length for this to work, so one value
+   covers every path in the mark. */
+@keyframes drawOn {
+  from { stroke-dashoffset: 260; }
+  to { stroke-dashoffset: 0; }
+}
+.draw-on {
+  stroke-dasharray: 260;
+  animation: drawOn 0.9s var(--ease-out-soft) both;
+}
+
+/* --- Boot splash fade ------------------------------------------------
+   The splash markup itself lives in index.html so the browser can paint
+   it before the JavaScript bundle has downloaded. This class is what
+   React adds to dismiss it (see main.jsx). */
+#boot-splash.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* ===================================================================
+   REDUCED MOTION
+   ===================================================================
+   Some people get genuinely unwell from moving interfaces (vestibular
+   disorders), and both Android and iOS expose a system setting for it.
+   Honouring that setting is a real accessibility requirement, not a nice
+   to have. Everything above collapses to an instant, motionless state -
+   the app still works identically, it just stops moving. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .marquee-track {
+    animation: none !important;
+  }
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+  /* Show the logo mark fully drawn rather than mid-sketch. */
+  .draw-on {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}

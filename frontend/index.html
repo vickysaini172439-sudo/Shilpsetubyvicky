@@ -15,8 +15,90 @@
     <meta name="apple-mobile-web-app-title" content="ShilpSetu" />
 
     <title>ShilpSetu - Artisan Digital Business Manager</title>
+
+    <!--
+      BOOT SPLASH
+      ===========
+      This markup and its styles are written directly into the page rather
+      than rendered by React, and that is the entire point: the browser can
+      paint it immediately, before the JavaScript bundle has even finished
+      downloading. On a slow phone connection that gap is otherwise a blank
+      white screen for a second or two, which reads as a broken app.
+
+      React removes it once it has mounted - see src/main.jsx.
+    -->
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #1F4D3A;
+        color: #FBE8DC;
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        transition: opacity 500ms ease, visibility 500ms ease;
+      }
+      #boot-splash .bs-name {
+        margin: 0;
+        font-size: 1.55rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+      #boot-splash .bs-tag {
+        margin: 0;
+        font-size: 0.85rem;
+        opacity: 0.75;
+      }
+      /* Each stroke of the mark is sketched on in turn. */
+      #boot-splash .bs-draw {
+        stroke-dasharray: 260;
+        stroke-dashoffset: 260;
+        animation: bsDraw 900ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+      }
+      #boot-splash .bs-fade {
+        opacity: 0;
+        animation: bsFade 500ms ease-out 600ms forwards;
+      }
+      @keyframes bsDraw { to { stroke-dashoffset: 0; } }
+      @keyframes bsFade { to { opacity: 1; } }
+
+      /* Respect the system "reduce motion" setting: show the finished mark
+         immediately instead of animating it. */
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash .bs-draw {
+          animation: none;
+          stroke-dashoffset: 0;
+        }
+        #boot-splash .bs-fade {
+          animation: none;
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot-splash">
+      <svg width="96" height="96" viewBox="0 0 100 100" fill="none" aria-label="ShilpSetu" role="img">
+        <!-- the bridge arch (setu) -->
+        <path class="bs-draw" d="M14 74 C14 38, 86 38, 86 74"
+              stroke="#D6A85F" stroke-width="5.5" stroke-linecap="round" />
+        <!-- the craft thread weaving through it (shilp) -->
+        <path class="bs-draw" d="M18 62 C31 50, 37 74, 50 62 C63 50, 69 74, 82 62"
+              stroke="#C96B4B" stroke-width="4.5" stroke-linecap="round"
+              style="animation-delay: 350ms" />
+        <!-- piers -->
+        <path class="bs-draw" d="M14 74 L14 88 M86 74 L86 88"
+              stroke="#FBE8DC" stroke-width="5.5" stroke-linecap="round"
+              style="animation-delay: 650ms" />
+      </svg>
+      <h1 class="bs-name bs-fade">ShilpSetu</h1>
+      <p class="bs-tag bs-fade">Your craft, your business</p>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
