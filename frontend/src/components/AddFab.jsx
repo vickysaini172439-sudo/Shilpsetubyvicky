@@ -6,6 +6,7 @@ import { Link, useLocation } from 'react-router-dom'
 export default function AddFab() {
   const location = useLocation()
   if (location.pathname === '/products') return null // already on the add/list screen
+  if (location.pathname === '/business-manager') return null // would overlap the chat input/send button
 
   return (
     <Link
