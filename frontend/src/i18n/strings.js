@@ -630,6 +630,41 @@ export const STRINGS = {
     Hinglish: 'ready',
   },
 
+  // ---------------------------------------------------------- input mode
+  // Typing vs speaking is the artisan's choice, not ours - see
+  // components/InputModeToggle.jsx for why this is an explicit setting
+  // rather than something the app decides for them.
+  'input.label': {
+    English: 'How would you like to fill this in?',
+    Hindi: 'आप इसे कैसे भरना चाहेंगे?',
+    Hinglish: 'Aap ise kaise bharna chahenge?',
+  },
+  'input.keyboard': {
+    English: 'Type',
+    Hindi: 'टाइप करें',
+    Hinglish: 'Type',
+  },
+  'input.voice': {
+    English: 'Speak',
+    Hindi: 'बोलें',
+    Hinglish: 'Bolein',
+  },
+  'input.keyboardHint': {
+    English: 'Keyboard only. The microphones stay hidden.',
+    Hindi: 'सिर्फ़ कीबोर्ड। माइक छिपे रहेंगे।',
+    Hinglish: 'Sirf keyboard. Mic chhupe rahenge.',
+  },
+  'input.voiceHint': {
+    English: 'A microphone appears next to each box — and you can still type in any box.',
+    Hindi: 'हर बॉक्स के पास माइक दिखेगा — और आप किसी भी बॉक्स में टाइप भी कर सकते हैं।',
+    Hinglish: 'Har box ke paas mic dikhega — aur aap kisi bhi box mein type bhi kar sakte hain.',
+  },
+  'input.changeAnytime': {
+    English: 'You can switch between these at any time.',
+    Hindi: 'आप इनके बीच कभी भी बदल सकते हैं।',
+    Hinglish: 'Aap inke beech kabhi bhi switch kar sakte hain.',
+  },
+
   // --------------------------------------------------------------- profile
   'profile.email': {
     English: 'Email',
