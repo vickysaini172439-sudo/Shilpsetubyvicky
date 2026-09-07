@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { loginUser } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 import { AuthHeader } from '../components/CraftArt.jsx'
+import { useLanguage } from '../i18n/LanguageContext.jsx'
 
 export default function Login() {
   const [phone, setPhone] = useState('')
@@ -10,6 +11,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
+  const { t } = useLanguage()
   const navigate = useNavigate()
 
   async function handleSubmit(e) {
@@ -29,10 +31,7 @@ export default function Login() {
 
   return (
     <div className="page-in min-h-screen bg-ivory">
-      <AuthHeader
-        title="Welcome back"
-        subtitle="Log in to manage your craft business."
-      />
+      <AuthHeader title={t('login.title')} subtitle={t('login.subtitle')} />
 
       {/* Pulled up over the header panel so the card overlaps it slightly -
           a small depth cue that makes the screen read as layered rather
@@ -41,7 +40,7 @@ export default function Login() {
         <div className="bg-white rounded-2xl shadow-lg p-5">
           <form onSubmit={handleSubmit} className="stagger">
             <div>
-              <label className="block text-sm font-medium text-charcoal mb-1">Phone Number</label>
+              <label className="block text-sm font-medium text-charcoal mb-1">{t('login.phone')}</label>
               <input
                 className="field"
                 inputMode="tel"
@@ -53,7 +52,7 @@ export default function Login() {
             </div>
 
             <div className="mt-4">
-              <label className="block text-sm font-medium text-charcoal mb-1">Password</label>
+              <label className="block text-sm font-medium text-charcoal mb-1">{t('login.password')}</label>
               <input
                 className="field"
                 type="password"
@@ -66,7 +65,7 @@ export default function Login() {
 
             <div className="text-right mt-2">
               <Link to="/forgot-password" className="text-sm text-forest underline">
-                Forgot password?
+                {t('login.forgot')}
               </Link>
             </div>
 
@@ -86,19 +85,19 @@ export default function Login() {
               {loading ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="spinner" />
-                  Logging in...
+                  {t('login.submitting')}
                 </span>
               ) : (
-                'Log In'
+                t('login.submit')
               )}
             </button>
           </form>
         </div>
 
         <p className="text-center mt-5 mb-10 text-gray-600">
-          New here?{' '}
+          {t('login.noAccount')}{' '}
           <Link to="/register" className="text-forest font-medium underline">
-            Create an account
+            {t('login.register')}
           </Link>
         </p>
       </div>

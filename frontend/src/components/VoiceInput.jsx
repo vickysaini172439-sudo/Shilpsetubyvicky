@@ -9,11 +9,14 @@ import { useEffect, useRef, useState } from 'react'
  * browser's built-in Web Speech API, so it is completely free and needs no
  * backend, no API key and no app install.
  *
- * Usage:
- *   <VoiceInput language="Hindi" onTranscript={(text) => append(text)} />
+ * Two shapes:
+ *   <VoiceInput language="Hindi" onTranscript={fn} />              full bar
+ *   <VoiceInput language="Hindi" onTranscript={fn} compact />      mic only
  *
- * onTranscript is called with each newly finished phrase, so the parent can
- * decide whether to append it or replace what is there.
+ * The compact form is for sitting beside a single text field (see the
+ * account creation screen), where a full-width bar per field would bury
+ * the form. onTranscript is called with each newly finished phrase, so the
+ * parent decides whether to append it or replace what is there.
  */
 
 // The browser expects locale codes, not language names.
@@ -59,6 +62,7 @@ export default function VoiceInput({
   showLanguagePicker = true,
   label = 'Speak',
   className = '',
+  compact = false,
 }) {
   const [locale, setLocale] = useState(speechLocaleFor(language))
   const [listening, setListening] = useState(false)
@@ -139,6 +143,38 @@ export default function VoiceInput({
     setListening(false)
   }
 
+  // ------------------------------------------------------------- compact
+  // A single round mic button meant to sit inside/next to one field. It
+  // renders nothing at all when the browser can't do speech, rather than
+  // an apology - beside a field, an error message about an unrelated
+  // capability is just noise, and the field still works by typing.
+  if (compact) {
+    if (!SPEECH_SUPPORTED) return null
+    return (
+      <span className={`inline-flex flex-col items-end ${className}`}>
+        <button
+          type="button"
+          onClick={listening ? stop : start}
+          aria-label={listening ? 'Stop voice typing' : `${label} — voice typing`}
+          aria-pressed={listening}
+          title={listening ? 'Stop' : label}
+          className={`press w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 shadow-sm transition-colors ${
+            listening ? 'bg-red-500 text-white animate-pulse' : 'bg-forest/10 text-forest'
+          }`}
+        >
+          {listening ? '⏹' : '🎙️'}
+        </button>
+        {listening && interim && (
+          <span className="text-[10px] italic text-gray-500 mt-0.5 max-w-[8rem] truncate">
+            {interim}
+          </span>
+        )}
+        {error && <span className="text-[10px] text-red-600 mt-0.5 max-w-[8rem]">{error}</span>}
+      </span>
+    )
+  }
+
+  // ---------------------------------------------------------------- full
   if (!SPEECH_SUPPORTED) {
     return (
       <p className={`text-xs text-gray-500 ${className}`}>

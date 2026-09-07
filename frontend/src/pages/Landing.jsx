@@ -1,15 +1,17 @@
 import { Link } from 'react-router-dom'
 import { CATEGORY_THEMES } from '../theme/categoryTheme.js'
 import { LogoMark, CraftScene, WovenBand, BlockPrintBackdrop } from '../components/CraftArt.jsx'
+import { useLanguage } from '../i18n/LanguageContext.jsx'
 
 // Small showcase strip so a first-time visitor sees, at a glance, that
 // ShilpSetu isn't tied to one craft - it's built for weavers, potters,
 // wood carvers and every other category in CATEGORY_THEMES alike.
 function CategoryShowcase() {
+  const { t } = useLanguage()
   const entries = Object.entries(CATEGORY_THEMES).filter(([name]) => name !== 'Other')
   return (
     <div className="w-full max-w-md mt-10">
-      <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">Built for every craft</p>
+      <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">{t('landing.builtFor')}</p>
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar">
         {entries.map(([name, theme]) => (
           <div
@@ -28,6 +30,8 @@ function CategoryShowcase() {
 }
 
 export default function Landing() {
+  const { t } = useLanguage()
+
   return (
     <div className="page-in min-h-screen bg-ivory">
       {/* --- Hero -------------------------------------------------------
@@ -44,9 +48,7 @@ export default function Landing() {
 
           <h1 className="text-3xl font-bold text-ivory mt-3">ShilpSetu</h1>
 
-          <p className="text-ivory/80 mt-2 max-w-xs leading-relaxed">
-            Your Virtual Business Manager — turning your craft into a digital business.
-          </p>
+          <p className="text-ivory/80 mt-2 max-w-xs leading-relaxed">{t('landing.tagline')}</p>
 
           <WovenBand className="w-32 h-3 mt-4" light />
 
@@ -61,21 +63,31 @@ export default function Landing() {
             to="/register"
             className="press block bg-terracotta text-white px-6 py-3 rounded-full font-semibold shadow-md w-full"
           >
-            Get Started
+            {t('landing.getStarted')}
           </Link>
 
           <Link
             to="/login"
             className="press block text-forest font-medium underline mt-4"
           >
-            Already have an account? Log in
+            {t('landing.haveAccount')}
+          </Link>
+
+          {/* A quiet way back to the language question, for someone who
+              tapped the wrong option or handed the phone to a relative. */}
+          <Link
+            to="/language"
+            state={{ next: '/' }}
+            className="press inline-block text-xs text-gray-500 underline mt-4"
+          >
+            🌐 भाषा बदलें · Change language
           </Link>
         </div>
 
         <CategoryShowcase />
 
         <Link to="/help" className="text-xs text-gray-500 underline mt-10">
-          Need help or have a question? Contact us
+          {t('landing.needHelp')}
         </Link>
       </div>
     </div>

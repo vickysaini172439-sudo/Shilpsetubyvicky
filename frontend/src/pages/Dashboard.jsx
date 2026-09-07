@@ -4,23 +4,29 @@ import { useAuth } from '../services/AuthContext.jsx'
 import { listProducts, getReadiness, getBusinessInsight, imageUrl } from '../services/api.js'
 import CategoryBanner from '../components/CategoryBanner.jsx'
 import { CATEGORY_THEMES } from '../theme/categoryTheme.js'
+import { useLanguage } from '../i18n/LanguageContext.jsx'
 
 // Every feature the app offers, each with its own accent colour and a
 // one-line description. This single list drives both the "stories" style
 // quick-access strip and the "Explore ShilpSetu" grid below it, so the
 // dashboard stays in sync automatically if a feature is ever added.
+//
+// Names and descriptions are translation KEYS, not words - which is what
+// lets the Hinglish rule apply here: in Hinglish the feature names stay in
+// English ("Photo Studio") while the description underneath switches to
+// Hinglish ("AI se apni product photos ko professional banayein").
 const FEATURES = [
-  { to: '/products', label: 'My Products', icon: '📦', color: '#C96B4B', desc: 'Add, edit and manage your listings' },
-  { to: '/photo-studio', label: 'Photo Studio', icon: '📷', color: '#6E4A8E', desc: 'AI-enhance your product photos' },
-  { to: '/catalogue', label: 'AI Catalogue', icon: '📝', color: '#B5533C', desc: 'Auto-write titles & descriptions' },
-  { to: '/pricing', label: 'Smart Pricing', icon: '💰', color: '#B8923F', desc: 'Fair, cost-based price suggestions' },
-  { to: '/business-manager', label: 'AI Manager', icon: '💬', color: '#1F4D3A', desc: 'Ask about product, business or budget' },
-  { to: '/digitalise', label: 'Digitalise', icon: '🌐', color: '#4C7A4F', desc: 'Step-by-step to go fully online' },
-  { to: '/my-store', label: 'My Store', icon: '🏪', color: '#A83D5E', desc: 'Your public storefront & QR code' },
-  { to: '/market-linkage', label: 'Market Linkage', icon: '🔗', color: '#71706B', desc: 'Discover buyers & opportunities' },
+  { to: '/products', labelKey: 'feature.products.label', descKey: 'feature.products.desc', icon: '📦', color: '#C96B4B' },
+  { to: '/photo-studio', labelKey: 'feature.photoStudio.label', descKey: 'feature.photoStudio.desc', icon: '📷', color: '#6E4A8E' },
+  { to: '/catalogue', labelKey: 'feature.catalogue.label', descKey: 'feature.catalogue.desc', icon: '📝', color: '#B5533C' },
+  { to: '/pricing', labelKey: 'feature.pricing.label', descKey: 'feature.pricing.desc', icon: '💰', color: '#B8923F' },
+  { to: '/business-manager', labelKey: 'feature.businessManager.label', descKey: 'feature.businessManager.desc', icon: '💬', color: '#1F4D3A' },
+  { to: '/digitalise', labelKey: 'feature.digitalise.label', descKey: 'feature.digitalise.desc', icon: '🌐', color: '#4C7A4F' },
+  { to: '/my-store', labelKey: 'feature.myStore.label', descKey: 'feature.myStore.desc', icon: '🏪', color: '#A83D5E' },
+  { to: '/market-linkage', labelKey: 'feature.marketLinkage.label', descKey: 'feature.marketLinkage.desc', icon: '🔗', color: '#71706B' },
 ]
 
-function StoryCircle({ feature }) {
+function StoryCircle({ feature, label }) {
   return (
     <Link to={feature.to} className="flex flex-col items-center gap-1 flex-shrink-0 w-16">
       <span
@@ -31,12 +37,12 @@ function StoryCircle({ feature }) {
           {feature.icon}
         </span>
       </span>
-      <span className="text-[10px] text-center leading-tight text-charcoal truncate w-16">{feature.label}</span>
+      <span className="text-[10px] text-center leading-tight text-charcoal truncate w-16">{label}</span>
     </Link>
   )
 }
 
-function FeatureCard({ feature, badge }) {
+function FeatureCard({ feature, label, desc, badge }) {
   return (
     <Link to={feature.to} className="fade-in bg-white rounded-2xl p-4 shadow-sm flex flex-col gap-2 active:scale-95 transition">
       <span
@@ -45,8 +51,8 @@ function FeatureCard({ feature, badge }) {
       >
         {feature.icon}
       </span>
-      <span className="text-sm font-semibold text-charcoal">{feature.label}</span>
-      <span className="text-xs text-gray-500 leading-snug">{feature.desc}</span>
+      <span className="text-sm font-semibold text-charcoal">{label}</span>
+      <span className="text-xs text-gray-500 leading-snug">{desc}</span>
       {badge && (
         <span
           className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full self-start"
@@ -62,7 +68,7 @@ function FeatureCard({ feature, badge }) {
 // A single card in the continuously-scrolling "Discover" strip - a small
 // coloured banner per feature, always in motion (see .marquee-track in
 // index.css) so the dashboard never looks like a static page of links.
-function FeatureBannerCard({ feature }) {
+function FeatureBannerCard({ feature, label, desc }) {
   return (
     <Link
       to={feature.to}
@@ -72,8 +78,8 @@ function FeatureBannerCard({ feature }) {
       <span aria-hidden="true" className="absolute -right-2 -top-3 text-5xl opacity-25 select-none">
         {feature.icon}
       </span>
-      <span className="relative text-sm font-semibold leading-tight">{feature.label}</span>
-      <span className="relative text-[10px] opacity-90 leading-snug mt-0.5">{feature.desc}</span>
+      <span className="relative text-sm font-semibold leading-tight">{label}</span>
+      <span className="relative text-[10px] opacity-90 leading-snug mt-0.5">{desc}</span>
     </Link>
   )
 }
@@ -85,7 +91,7 @@ function FeatureBannerCard({ feature }) {
 // separately from the rest of the dashboard's data (its own loading
 // state) since a live AI call can take a beat longer than the plain
 // product/readiness lookups, and the rest of the page shouldn't wait on it.
-function InsightCard({ insight, loading }) {
+function InsightCard({ insight, loading, title }) {
   if (loading) {
     return (
       <div className="bg-white rounded-2xl p-4 shadow-sm mb-6 flex gap-3 items-start">
@@ -111,7 +117,7 @@ function InsightCard({ insight, loading }) {
       </span>
       <div className="flex-1">
         <p className="text-[10px] uppercase tracking-wide text-white/70 font-semibold mb-1">
-          AI Insight {insight.ai_mode === 'demo' ? '· Demo Mode' : insight.ai_provider_label ? `· ${insight.ai_provider_label}` : ''}
+          {title} {insight.ai_mode === 'demo' ? '· Demo Mode' : insight.ai_provider_label ? `· ${insight.ai_provider_label}` : ''}
         </p>
         <p className="text-sm leading-snug">{insight.tip}</p>
       </div>
@@ -121,6 +127,7 @@ function InsightCard({ insight, loading }) {
 
 export default function Dashboard() {
   const { user, token } = useAuth()
+  const { t } = useLanguage()
   const [stats, setStats] = useState({ total: 0, published: 0, draft: 0 })
   const [recentProducts, setRecentProducts] = useState([])
   const [readiness, setReadiness] = useState(null)
@@ -154,13 +161,14 @@ export default function Dashboard() {
   function badgeFor(feature) {
     if (loading) return null
     if (feature.to === '/products') {
-      return stats.total ? `${stats.total} item${stats.total === 1 ? '' : 's'}` : 'Add your first'
+      if (!stats.total) return t('dash.addFirst')
+      return `${stats.total} ${stats.total === 1 ? t('dash.itemSuffix') : t('dash.itemsSuffix')}`
     }
     if (feature.to === '/my-store') {
-      return stats.published ? `${stats.published} live` : null
+      return stats.published ? `${stats.published} ${t('dash.live')}` : null
     }
     if (feature.to === '/digitalise' && readiness) {
-      return `${readiness.score}% ready`
+      return `${readiness.score}% ${t('dash.ready')}`
     }
     return null
   }
@@ -169,7 +177,7 @@ export default function Dashboard() {
     <div>
       <CategoryBanner category={user?.business?.craft_category} className="px-5 py-6 mb-5">
         <h2 className="text-xl font-bold text-white mb-1">
-          Welcome, {user?.name || 'Artisan'} 👋
+          {t('dash.welcome')}, {user?.name || 'Artisan'} 👋
         </h2>
         <p className="text-white/85">{user?.business?.business_name}</p>
         {user?.business?.craft_category && (
@@ -178,21 +186,26 @@ export default function Dashboard() {
       </CategoryBanner>
 
       <div className="px-5">
-        <InsightCard insight={insight} loading={insightLoading} />
+        <InsightCard insight={insight} loading={insightLoading} title={t('dash.insight')} />
 
-        <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">Discover what you can do</p>
+        <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">{t('dash.discover')}</p>
         <div className="overflow-hidden mb-6">
           <div className="flex gap-3 marquee-track">
             {[...FEATURES, ...FEATURES].map((f, i) => (
-              <FeatureBannerCard key={`${f.to}-${i}`} feature={f} />
+              <FeatureBannerCard
+                key={`${f.to}-${i}`}
+                feature={f}
+                label={t(f.labelKey)}
+                desc={t(f.descKey)}
+              />
             ))}
           </div>
         </div>
 
-        <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">Quick access</p>
+        <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">{t('dash.quickAccess')}</p>
         <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 mb-6 no-scrollbar">
           {FEATURES.map((f) => (
-            <StoryCircle key={f.to} feature={f} />
+            <StoryCircle key={f.to} feature={f} label={t(f.labelKey)} />
           ))}
         </div>
 
@@ -208,22 +221,22 @@ export default function Dashboard() {
             <>
               <div className="fade-in bg-white rounded-xl p-3 shadow-sm text-center">
                 <p className="text-2xl font-bold text-forest">{stats.total}</p>
-                <p className="text-xs text-gray-500 mt-1">Products</p>
+                <p className="text-xs text-gray-500 mt-1">{t('dash.statProducts')}</p>
               </div>
               <div className="fade-in bg-white rounded-xl p-3 shadow-sm text-center">
                 <p className="text-2xl font-bold text-forest">{stats.published}</p>
-                <p className="text-xs text-gray-500 mt-1">Published</p>
+                <p className="text-xs text-gray-500 mt-1">{t('dash.statPublished')}</p>
               </div>
               <div className="fade-in bg-white rounded-xl p-3 shadow-sm text-center">
                 <p className="text-2xl font-bold text-forest">{stats.draft}</p>
-                <p className="text-xs text-gray-500 mt-1">Drafts</p>
+                <p className="text-xs text-gray-500 mt-1">{t('dash.statDrafts')}</p>
               </div>
             </>
           )}
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
-          <p className="text-sm text-gray-500 mb-1">Digital Readiness Score</p>
+          <p className="text-sm text-gray-500 mb-1">{t('dash.readiness')}</p>
           {loading ? (
             <div className="skeleton h-8 rounded-lg w-20 mt-1" />
           ) : (
@@ -241,17 +254,15 @@ export default function Dashboard() {
             </div>
           )}
           {readiness?.next_steps?.length > 0 && (
-            <p className="text-xs text-gray-400 mt-3">
-              Complete these {readiness.next_steps.length} step(s) to improve your score.
-            </p>
+            <p className="text-xs text-gray-400 mt-3">{t('dash.readinessHint')}</p>
           )}
         </div>
 
         {recentProducts.length > 0 && (
           <>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-charcoal">Recent Products</h3>
-              <Link to="/products" className="text-xs text-forest font-medium">See all</Link>
+              <h3 className="font-semibold text-charcoal">{t('dash.recent')}</h3>
+              <Link to="/products" className="text-xs text-forest font-medium">{t('common.seeAll')}</Link>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 mb-6 no-scrollbar">
               {recentProducts.map((p) => {
@@ -276,10 +287,16 @@ export default function Dashboard() {
           </>
         )}
 
-        <h3 className="font-semibold text-charcoal mb-3">Explore ShilpSetu</h3>
+        <h3 className="font-semibold text-charcoal mb-3">{t('dash.explore')}</h3>
         <div className="grid grid-cols-2 gap-3">
           {FEATURES.map((f) => (
-            <FeatureCard key={f.to} feature={f} badge={badgeFor(f)} />
+            <FeatureCard
+              key={f.to}
+              feature={f}
+              label={t(f.labelKey)}
+              desc={t(f.descKey)}
+              badge={badgeFor(f)}
+            />
           ))}
         </div>
       </div>
