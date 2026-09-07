@@ -1,10 +1,12 @@
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import BottomNav from './components/BottomNav.jsx'
 import AddFab from './components/AddFab.jsx'
 import PrivateRoute from './components/PrivateRoute.jsx'
+import { useLanguage } from './i18n/LanguageContext.jsx'
 
 import Landing from './pages/Landing.jsx'
+import ChooseLanguage from './pages/ChooseLanguage.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
@@ -24,22 +26,27 @@ import Help from './pages/Help.jsx'
 // Pages that show the app header + bottom navigation (the "logged in" shell).
 // Landing/Login/Register/PublicStore are full-screen without this chrome -
 // PublicStore especially, since a visitor viewing it isn't logged in at all.
-const pageTitles = {
-  '/dashboard': 'Dashboard',
-  '/products': 'My Products',
-  '/photo-studio': 'AI Photo Studio',
-  '/catalogue': 'AI Catalogue',
-  '/pricing': 'Smart Pricing',
-  '/business-manager': 'AI Business Manager',
-  '/digitalise': 'Digitalise My Business',
-  '/my-store': 'My Digital Store',
-  '/market-linkage': 'Market Opportunities',
-  '/profile': 'Profile & Settings',
+//
+// These map to translation keys rather than literal words, so the header
+// follows whichever language the artisan chose.
+const pageTitleKeys = {
+  '/dashboard': 'page.dashboard',
+  '/products': 'page.products',
+  '/photo-studio': 'page.photoStudio',
+  '/catalogue': 'page.catalogue',
+  '/pricing': 'page.pricing',
+  '/business-manager': 'page.businessManager',
+  '/digitalise': 'page.digitalise',
+  '/my-store': 'page.myStore',
+  '/market-linkage': 'page.marketLinkage',
+  '/profile': 'page.profile',
 }
 
 function AppShell({ children }) {
   const location = useLocation()
-  const title = pageTitles[location.pathname] || 'ShilpSetu'
+  const { t } = useLanguage()
+  const key = pageTitleKeys[location.pathname]
+  const title = key ? t(key) : 'ShilpSetu'
   return (
     <div className="min-h-screen bg-ivory pb-16">
       <Header title={title} />
@@ -66,10 +73,34 @@ function Protected({ children }) {
   )
 }
 
+/**
+ * Sends a brand-new visitor to the language question before they see
+ * anything else, then never asks again once they have answered.
+ *
+ * It wraps only the landing screen, not the whole app: someone opening a
+ * shared storefront link, or coming back to /login directly, should not be
+ * interrupted by a settings question.
+ */
+function LanguageGate({ children }) {
+  const { hasChosen } = useLanguage()
+  if (!hasChosen) return <Navigate to="/language" replace />
+  return children
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route
+        path="/"
+        element={
+          <LanguageGate>
+            <Landing />
+          </LanguageGate>
+        }
+      />
+      {/* Asked once, before account creation - and reachable again later
+          from Profile & Settings if they want to switch. */}
+      <Route path="/language" element={<ChooseLanguage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -3,14 +3,21 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { AuthProvider } from './services/AuthContext.jsx'
+import { LanguageProvider } from './i18n/LanguageContext.jsx'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      {/* LanguageProvider sits outside AuthProvider on purpose: the very
+          first screen (the language question) is shown before anyone has
+          logged in, so the chosen language has to exist independently of
+          whether there is a user yet. */}
+      <LanguageProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </LanguageProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )
