@@ -4,7 +4,8 @@ import { registerUser, getSecurityQuestions } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 import { CRAFT_CATEGORIES, INDIAN_STATES, LANGUAGES } from '../constants.js'
 import { AuthHeader } from '../components/CraftArt.jsx'
-import VoiceInput, { SPEECH_SUPPORTED } from '../components/VoiceInput.jsx'
+import VoiceInput from '../components/VoiceInput.jsx'
+import InputModeToggle, { useInputMode, INPUT_MODES } from '../components/InputModeToggle.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 
 const LABEL_CLASS = 'block text-sm font-medium text-charcoal mb-1 mt-4 first:mt-0'
@@ -35,12 +36,12 @@ function Section({ step, title, description, children }) {
 }
 
 /**
- * A text field with a microphone beside it.
+ * A text field, optionally with a microphone beside it.
  *
  * This is the change that matters most on this screen: an artisan who
- * cannot type in their own script can now fill in every free-text field by
- * speaking it. The mic sits inline rather than below, so the form stays the
- * same length as before and does not feel heavier.
+ * cannot type in their own script can fill in every free-text field by
+ * speaking it instead. The mic sits inline rather than below, so the form
+ * stays the same length as before and does not feel heavier.
  *
  * Defined at module scope, NOT inside Register. A component declared inside
  * another component is a brand-new type on every render, so React throws the
@@ -58,6 +59,7 @@ function SpeakableField({
   language,
   hint,
   textarea = false,
+  showMic = true,
   ...rest
 }) {
   return (
@@ -82,13 +84,17 @@ function SpeakableField({
             {...rest}
           />
         )}
-        <VoiceInput
-          compact
-          language={language}
-          onTranscript={onSpoken}
-          label={speakLabel}
-          className="pt-0.5"
-        />
+        {/* The text box above is never disabled or replaced - the mic is
+            purely additional, and hiding it here only reclaims its width. */}
+        {showMic && (
+          <VoiceInput
+            compact
+            language={language}
+            onTranscript={onSpoken}
+            label={speakLabel}
+            className="pt-0.5"
+          />
+        )}
       </div>
       {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
     </>
@@ -119,6 +125,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const [questions, setQuestions] = useState([])
   const [questionsError, setQuestionsError] = useState('')
+  // Typing or speaking is the artisan's call, remembered between visits.
+  const [inputMode, setInputMode] = useInputMode()
   const { login } = useAuth()
   const navigate = useNavigate()
 
@@ -189,6 +197,7 @@ export default function Register() {
     language: form.preferred_language,
     speakLabel: t('common.speak'),
     onChange: handleChange,
+    showMic: inputMode === INPUT_MODES.VOICE,
   }
 
   return (
@@ -196,15 +205,10 @@ export default function Register() {
       <AuthHeader title={t('register.title')} subtitle={t('register.subtitle')} />
 
       <div className="px-5 -mt-6 relative">
-        {/* One honest, up-front note that speaking is an option at all -
-            a microphone icon on its own is easy to miss if you have never
-            used voice input before. */}
-        {SPEECH_SUPPORTED && (
-          <div className="bg-forest/10 border border-forest/20 rounded-xl px-3 py-2 mb-4 flex items-start gap-2">
-            <span aria-hidden="true" className="text-base leading-none mt-0.5">🎙️</span>
-            <p className="text-xs text-forest leading-snug">{t('common.voiceHint')}</p>
-          </div>
-        )}
+        {/* Asked once, before the form itself, so nobody has to work out
+            what the microphones are for field by field. Renders nothing on a
+            browser without speech support. */}
+        <InputModeToggle mode={inputMode} onChange={setInputMode} className="mb-4" />
 
         <form onSubmit={handleSubmit} className="stagger">
           <Section step="1" title={t('register.step1')} description={t('register.step1desc')}>
