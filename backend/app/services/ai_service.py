@@ -1,8 +1,79 @@
 import json
+import logging
 import re
 import requests
 
 from app.config import CATALOGUE_AI_PROVIDER, BUSINESS_ADVICE_AI_PROVIDER, _resolve_text_provider
+
+logger = logging.getLogger("shilpsetu.ai")
+
+
+# ---------------------------------------------------------------------
+# Why this exists
+# ---------------------------------------------------------------------
+# Every AI feature used to fall back to Demo Mode with a bare
+# `except Exception: pass`. The failure was invisible: no log line, no
+# error in the response, and the screen said "No AI API key is configured
+# yet" - which was simply false when a key WAS configured and the call had
+# failed for some other reason.
+#
+# That message cost real debugging time. The app was blamed for not having
+# the AI "deployed" when in fact it was calling a model name that did not
+# exist and hiding the 404.
+#
+# So failures are now recorded three ways: logged on the server, returned
+# to the client as `ai_error`, and distinguished from a genuinely missing
+# key by `ai_configured`. The fallback content is unchanged - the artisan
+# still gets something usable - but nobody has to guess why any more.
+
+def _describe_ai_failure(feature: str, exc: Exception, provider: str, model: str) -> str:
+    """
+    Turns an exception from an AI call into one honest sentence, pulling
+    the provider's own error message out of the HTTP body when there is
+    one. Never raises - this runs on an error path and must not add a
+    second failure on top of the first.
+    """
+    detail = ""
+    status = None
+    response = getattr(exc, "response", None)
+
+    if response is not None:
+        status = getattr(response, "status_code", None)
+        try:
+            body = response.json() or {}
+            detail = (body.get("error") or {}).get("message") or ""
+        except Exception:  # noqa: BLE001
+            try:
+                detail = (response.text or "")[:300]
+            except Exception:  # noqa: BLE001
+                detail = ""
+
+    if not detail:
+        detail = f"{type(exc).__name__}: {exc}"[:300]
+
+    # This string is returned to the browser and written to the logs, so
+    # redact anything key-shaped before it goes anywhere. OpenAI already
+    # redacts keys in its own error text, but "the other side is careful"
+    # is not a good reason to forward provider output unchecked.
+    detail = re.sub(r"\b(sk|rk)-[A-Za-z0-9_\-]{8,}", "[redacted-key]", detail)
+
+    if status == 401:
+        summary = "The API key was rejected. Check OPENAI_API_KEY is correct and not revoked."
+    elif status == 404:
+        summary = (
+            f"The model '{model}' was not found on this account. "
+            "Set OPENAI_MODEL to a model your account actually has."
+        )
+    elif status == 429:
+        summary = "Out of quota or rate limited. Check billing and credit on the AI account."
+    elif status is not None:
+        summary = f"{provider} returned HTTP {status}."
+    else:
+        summary = f"Could not reach {provider}."
+
+    message = f"{summary} ({detail})" if detail else summary
+    logger.warning("[ai] %s failed via %s/%s -> %s", feature, provider, model, message)
+    return message
 
 # Each text feature (catalogue, business advice) independently resolves
 # its own provider settings from app/config.py - see
@@ -104,14 +175,22 @@ def generate_catalogue(raw_text: str, product_name: str, category: str, material
     internet connection at the venue.
     """
     base_url, api_key, model, provider, enabled = _resolve_text_provider(CATALOGUE_AI_PROVIDER)
+    failure = None
     if enabled:
         try:
             return _real_catalogue(raw_text, product_name, category, material, craft_type,
                                     language, base_url, api_key, model, provider)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001
+            failure = _describe_ai_failure("catalogue", exc, provider, model)
 
-    return _mock_catalogue(raw_text, product_name, category, material, craft_type, language)
+    result = _mock_catalogue(raw_text, product_name, category, material, craft_type, language)
+    # Tell the screen the truth about WHY it is showing a template draft.
+    # ai_configured separates "you never added a key" from "your key is
+    # there and the call failed", which are completely different problems
+    # and used to look identical to the artisan.
+    result["ai_error"] = failure
+    result["ai_configured"] = bool(api_key)
+    return result
 
 
 def _real_catalogue(raw_text, product_name, category, material, craft_type, language,
@@ -277,13 +356,18 @@ def _mock_catalogue(raw_text, product_name, category, material, craft_type, lang
 def business_advice(question: str, business_name: str, category: str, product_name: str, price,
                     material: str, language: str = "English") -> dict:
     base_url, api_key, model, provider, enabled = _resolve_text_provider(BUSINESS_ADVICE_AI_PROVIDER)
+    failure = None
     if enabled:
         try:
             return _real_business_advice(question, business_name, category, product_name, price,
                                           material, language, base_url, api_key, model, provider)
-        except Exception:
-            pass
-    return _mock_business_advice(question, business_name, category, product_name, price, material)
+        except Exception as exc:  # noqa: BLE001
+            failure = _describe_ai_failure("business advice", exc, provider, model)
+
+    result = _mock_business_advice(question, business_name, category, product_name, price, material)
+    result["ai_error"] = failure
+    result["ai_configured"] = bool(api_key)
+    return result
 
 
 def _real_business_advice(question, business_name, category, product_name, price, material, language,
@@ -459,8 +543,12 @@ def pricing_reasoning(product_name: str, category: str, material: str, quantity:
         )
         response.raise_for_status()
         text = response.json()["choices"][0]["message"]["content"].strip()
-    except Exception:  # noqa: BLE001
-        return {"reasoning": None, "ai_mode": "demo"}
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "reasoning": None,
+            "ai_mode": "demo",
+            "ai_error": _describe_ai_failure("pricing reasoning", exc, provider, model),
+        }
 
     return {
         "reasoning": text,
@@ -468,6 +556,97 @@ def pricing_reasoning(product_name: str, category: str, material: str, quantity:
         "ai_provider": provider,
         "ai_provider_label": PROVIDER_LABELS.get(provider, provider),
     }
+
+
+# ---------------------------------------------------------------------
+# Live self-check
+# ---------------------------------------------------------------------
+# The whole reason this exists: when the AI silently sat in Demo Mode
+# there was no way to find out why from inside the app. You could see
+# that it was not working, and nothing more. Every diagnosis was a guess.
+#
+# This makes ONE tiny real call per provider and reports exactly what came
+# back - the status code and the provider's own error message. A wrong
+# model name, a revoked key and an empty balance all look identical from
+# the outside and completely different here.
+#
+# Kept deliberately cheap: a 1-token completion for text, and a plain
+# model lookup for images rather than actually generating one.
+# ---------------------------------------------------------------------
+
+def _diagnose_text(base_url, api_key, model, provider) -> dict:
+    try:
+        response = requests.post(
+            f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": "ping"}],
+                "max_tokens": 1,
+            },
+            timeout=25,
+        )
+        response.raise_for_status()
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "model": model, "error": _describe_ai_failure("diagnose/text", exc, provider, model)}
+    return {"ok": True, "model": model, "error": None}
+
+
+def _diagnose_image(base_url, api_key, model, provider) -> dict:
+    """Asks whether the image model exists on this account, without paying
+    to generate a picture."""
+    try:
+        response = requests.get(
+            f"{base_url}/models/{model}",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=25,
+        )
+        response.raise_for_status()
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "model": model, "error": _describe_ai_failure("diagnose/image", exc, provider, model)}
+    return {"ok": True, "model": model, "error": None}
+
+
+def diagnose_providers() -> dict:
+    """
+    Returns a plain, honest report of what is actually configured and what
+    actually works right now. Safe to expose: it never returns the key,
+    only whether one is present and what the provider said.
+    """
+    from app.config import (  # imported here to keep module import order simple
+        OPENAI_API_KEY, OPENAI_API_BASE_URL, OPENAI_MODEL, OPENAI_IMAGE_MODEL, DEMO_MODE,
+    )
+
+    report = {
+        "demo_mode_forced": DEMO_MODE,
+        "openai_key_present": bool(OPENAI_API_KEY),
+        "openai_key_hint": (OPENAI_API_KEY[:7] + "..." + OPENAI_API_KEY[-4:]) if OPENAI_API_KEY else None,
+        "catalogue_provider": CATALOGUE_AI_PROVIDER,
+        "business_advice_provider": BUSINESS_ADVICE_AI_PROVIDER,
+        "text": None,
+        "image": None,
+    }
+
+    if not OPENAI_API_KEY:
+        report["summary"] = (
+            "No OPENAI_API_KEY is set on the server, so every AI feature will use Demo Mode. "
+            "Add it in the Render dashboard under Environment."
+        )
+        return report
+
+    report["text"] = _diagnose_text(OPENAI_API_BASE_URL, OPENAI_API_KEY, OPENAI_MODEL, "openai")
+    report["image"] = _diagnose_image(OPENAI_API_BASE_URL, OPENAI_API_KEY, OPENAI_IMAGE_MODEL, "openai")
+
+    if report["text"]["ok"] and report["image"]["ok"]:
+        report["summary"] = "Both the text and image models are reachable. AI features should be live."
+    elif report["text"]["ok"]:
+        report["summary"] = f"Text AI works. Image AI does not: {report['image']['error']}"
+    elif report["image"]["ok"]:
+        report["summary"] = f"Image AI works. Text AI does not: {report['text']['error']}"
+    else:
+        report["summary"] = f"Neither model is reachable. Text: {report['text']['error']}"
+
+    return report
 
 
 # ---------------------------------------------------------------------
@@ -484,6 +663,7 @@ def generate_business_insight(business_name: str, category: str, total_products:
                                price_min, price_max, readiness_score: int,
                                top_missing_step: str, language: str = "English") -> dict:
     base_url, api_key, model, provider, enabled = _resolve_text_provider(BUSINESS_ADVICE_AI_PROVIDER)
+    failure = None
     if enabled:
         try:
             return _real_business_insight(
@@ -491,9 +671,13 @@ def generate_business_insight(business_name: str, category: str, total_products:
                 avg_price, price_min, price_max, readiness_score, top_missing_step,
                 language, base_url, api_key, model, provider,
             )
-        except Exception:
-            pass
-    return _mock_business_insight(total_products, published_count, draft_count, readiness_score, top_missing_step)
+        except Exception as exc:  # noqa: BLE001
+            failure = _describe_ai_failure("business insight", exc, provider, model)
+
+    result = _mock_business_insight(total_products, published_count, draft_count, readiness_score, top_missing_step)
+    result["ai_error"] = failure
+    result["ai_configured"] = bool(api_key)
+    return result
 
 
 def _real_business_insight(business_name, category, total_products, published_count, draft_count,
