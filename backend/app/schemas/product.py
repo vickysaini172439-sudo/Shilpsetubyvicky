@@ -13,6 +13,10 @@ class ProductOut(BaseModel):
     category: Optional[str] = None
     craft_type: Optional[str] = None
     price: Optional[float] = None
+    # One feature per line; the frontend splits on newlines.
+    features: Optional[str] = None
+    caption: Optional[str] = None
+    stock_quantity: Optional[int] = None
     status: str
     image_url: Optional[str] = None
     created_at: datetime
