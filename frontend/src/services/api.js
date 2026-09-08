@@ -150,7 +150,7 @@ export function getTextCapabilities(token) {
 // AI background removal ran, or Demo Mode.
 export async function enhanceImage(
   file,
-  { engine = "auto", removeBg = false, brightness = 1.15, contrast = 1.15, instruction = "" },
+  { engine = "auto", removeBg = false, brightness = 1.15, contrast = 1.15, instruction = "", category = "" },
   token
 ) {
   const formData = new FormData()
@@ -160,6 +160,10 @@ export async function enhanceImage(
   formData.append("brightness", brightness)
   formData.append("contrast", contrast)
   formData.append("instruction", instruction)
+  // The craft category tells the image AI what object it is retouching.
+  // Without it the model guesses, and a guessed craft comes back redrawn
+  // as something generic - which is what "the AI ruined my photo" means.
+  formData.append("category", category)
 
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
