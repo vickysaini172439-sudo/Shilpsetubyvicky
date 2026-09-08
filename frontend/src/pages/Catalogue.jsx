@@ -68,6 +68,21 @@ export default function Catalogue() {
       formData.append('category', result.category || product.category || '')
       formData.append('craft_type', product.craft_type || '')
       formData.append('price', product.price ?? '')
+
+      // The AI writes features and a marketing caption on every run, and
+      // until now both were shown on this screen and then thrown away on
+      // save. They are the two things that make the public store page look
+      // like a real shop instead of a grid of thumbnails, so they are now
+      // stored on the product.
+      //
+      // Features go one per line - that is the format the backend and the
+      // storefront both expect (see models/product.py).
+      formData.append(
+        'features',
+        Array.isArray(result.features) ? result.features.filter(Boolean).join('\n') : (result.features || ''),
+      )
+      formData.append('caption', result.marketing_caption || '')
+
       formData.append('status', product.status)
 
       const updated = await updateProduct(product.id, formData, token)
@@ -142,13 +157,23 @@ export default function Catalogue() {
               <input className={inputClass} value={result.title_hindi || ''} onChange={(e) => updateField('title_hindi', e.target.value)} />
 
               <label className={labelClass}>Description (English)</label>
-              <textarea className={inputClass} rows={3} value={result.description_english || ''} onChange={(e) => updateField('description_english', e.target.value)} />
+              <textarea className={inputClass} rows={8} value={result.description_english || ''} onChange={(e) => updateField('description_english', e.target.value)} />
 
               <label className={labelClass}>Description ({language})</label>
-              <textarea className={inputClass} rows={3} value={result.description_hindi || ''} onChange={(e) => updateField('description_hindi', e.target.value)} />
+              <textarea className={inputClass} rows={8} value={result.description_hindi || ''} onChange={(e) => updateField('description_hindi', e.target.value)} />
 
               <label className={labelClass}>Key Features</label>
-              <p className="text-sm text-gray-700 bg-ivory rounded-lg p-3">{(result.features || []).join(' • ')}</p>
+              {/* One per line. The AI now writes 5-7 full descriptive
+                  features rather than two-word fragments, and joining
+                  those onto a single line made them unreadable. */}
+              <ul className="text-sm text-gray-700 bg-ivory rounded-lg p-3 space-y-1.5">
+                {(result.features || []).map((f, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-forest flex-shrink-0">✓</span>
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
 
               <label className={labelClass}>Marketing Caption</label>
               <input className={inputClass} value={result.marketing_caption || ''} onChange={(e) => updateField('marketing_caption', e.target.value)} />

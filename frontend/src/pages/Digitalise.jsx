@@ -3,6 +3,37 @@ import { Link } from 'react-router-dom'
 import { getMyStorefront, updateStorefront, uploadLogo, imageUrl } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 
+// Where to send an artisan who does not have the account yet. These are
+// the real signup pages, opened in a new tab so they never lose the form
+// they are halfway through filling in here.
+const SOCIAL_SIGNUP = {
+  instagram: 'https://www.instagram.com/accounts/emailsignup/',
+  facebook: 'https://www.facebook.com/pages/creation/',
+}
+
+/**
+ * Turns whatever the artisan typed into a working profile URL.
+ *
+ * People do not type URLs. They type "myshop", or "@myshop", or
+ * "instagram.com/myshop", because that is how a handle is written and
+ * spoken everywhere else. Saving that raw would produce a dead link on
+ * their public storefront - a broken link on the one page they send to
+ * customers - so we repair it here instead of rejecting their input.
+ */
+function normalizeSocialUrl(value, host) {
+  const raw = (value || '').trim()
+  if (!raw) return ''
+
+  // Already a full URL - leave it alone apart from tidying the scheme.
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (raw.startsWith('www.') || raw.includes(`${host}/`)) return `https://${raw.replace(/^www\./i, '')}`
+
+  // A bare handle, with or without the @.
+  const handle = raw.replace(/^@/, '').replace(/\s+/g, '')
+  if (!handle) return ''
+  return `https://www.${host}/${handle}`
+}
+
 export default function Digitalise() {
   const { token } = useAuth()
   const [business, setBusiness] = useState(null)
@@ -50,8 +81,20 @@ export default function Digitalise() {
     setSaving(true)
     setError('')
     try {
-      const updated = await updateStorefront(form, token)
+      // Repair handles into real URLs before saving, and show the artisan
+      // the corrected value so they can see what was stored.
+      const cleaned = {
+        ...form,
+        instagram_url: normalizeSocialUrl(form.instagram_url, 'instagram.com'),
+        facebook_url: normalizeSocialUrl(form.facebook_url, 'facebook.com'),
+      }
+      const updated = await updateStorefront(cleaned, token)
       setBusiness(updated)
+      setForm({
+        whatsapp_number: updated.whatsapp_number || '',
+        instagram_url: updated.instagram_url || '',
+        facebook_url: updated.facebook_url || '',
+      })
       setSaved(true)
     } catch (err) {
       setError(err.message)
@@ -106,11 +149,55 @@ export default function Digitalise() {
         <label className={labelClass}>WhatsApp Number (shown publicly)</label>
         <input className={inputClass} name="whatsapp_number" value={form.whatsapp_number} onChange={handleChange} placeholder="e.g. 9876543210" />
 
-        <label className={labelClass}>Instagram Link</label>
-        <input className={inputClass} name="instagram_url" value={form.instagram_url} onChange={handleChange} placeholder="https://instagram.com/yourbusiness" />
+        <label className={labelClass}>Instagram</label>
+        <input
+          className={inputClass}
+          name="instagram_url"
+          value={form.instagram_url}
+          onChange={handleChange}
+          placeholder="yourbusiness  (or paste the full link)"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Just your username is enough — we'll turn it into a proper link.{' '}
+          <a
+            href={SOCIAL_SIGNUP.instagram}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-forest font-medium underline"
+          >
+            Don't have Instagram? Create an account →
+          </a>
+        </p>
 
-        <label className={labelClass}>Facebook Link</label>
-        <input className={inputClass} name="facebook_url" value={form.facebook_url} onChange={handleChange} placeholder="https://facebook.com/yourbusiness" />
+        <label className={labelClass}>Facebook</label>
+        <input
+          className={inputClass}
+          name="facebook_url"
+          value={form.facebook_url}
+          onChange={handleChange}
+          placeholder="yourbusiness  (or paste the full link)"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Just your page name is enough — we'll turn it into a proper link.{' '}
+          <a
+            href={SOCIAL_SIGNUP.facebook}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-forest font-medium underline"
+          >
+            Don't have a Facebook Page? Create one →
+          </a>
+        </p>
+
+        <div className="mt-4 bg-ivory rounded-lg p-3">
+          <p className="text-xs text-charcoal font-semibold mb-1">Why add these?</p>
+          <p className="text-xs text-gray-600 leading-snug">
+            Both links appear on your public store page, so a customer who likes your work can
+            follow you and see new pieces later. A business page also lets you post photos for
+            free and reply to buyers in one place. Adding them is optional — your store works
+            without them.
+          </p>
+        </div>
 
         {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
         {saved && <p className="text-forest text-sm mt-3">Saved ✓</p>}
