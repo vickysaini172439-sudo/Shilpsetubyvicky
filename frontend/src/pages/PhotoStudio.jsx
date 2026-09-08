@@ -63,7 +63,17 @@ export default function PhotoStudio() {
     try {
       const result = await enhanceImage(
         file,
-        { engine, removeBg, brightness, contrast, instruction },
+        {
+          engine,
+          removeBg,
+          brightness,
+          contrast,
+          instruction,
+          // This product's own category is more specific than the account's
+          // craft category (an artisan may sell more than one kind of thing).
+          // The backend falls back to the account category if this is empty.
+          category: product?.category || '',
+        },
         token
       )
       setEnhancedBlob(result.blob)
