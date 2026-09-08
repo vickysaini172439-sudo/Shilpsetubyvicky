@@ -26,6 +26,9 @@ Each category below therefore carries three things:
   identity  - what the object IS, so the model anchors to it
   keep      - the specific handmade details that must survive the edit
   staging   - how this kind of craft is normally shot for a catalogue
+
+The artisan can also name the specific item, which is better grounding
+still - see build_photo_prompt's product_name argument.
 """
 
 # Categories match CRAFT_CATEGORIES in frontend/src/constants.js exactly.
@@ -126,8 +129,68 @@ CATEGORY_PHOTO_GUIDE = {
 
 _GENERIC = CATEGORY_PHOTO_GUIDE["Other"]
 
+# Longest product description we will put into the prompt. An artisan
+# naming their product needs a handful of words; anything beyond this is
+# either a paste or an attempt to steer the model, and neither belongs in
+# a photo-retouching instruction.
+MAX_PRODUCT_NAME_CHARS = 90
 
-def build_photo_prompt(category: str = "", extra_instruction: str = "") -> str:
+
+def _clean_product_name(raw: str) -> str:
+    """
+    Makes an artisan's free-text product description safe to drop into the
+    prompt.
+
+    This is the one place in Photo Studio where user-typed text reaches an
+    AI instruction, so it is treated as data, not as instruction:
+
+      - newlines and control characters are collapsed to spaces, so the
+        text cannot break out of its line and pose as a new directive
+      - double quotes are dropped, since the name is inserted inside
+        quotes and could otherwise close them early
+      - it is length-capped
+
+    The prompt itself does the rest of the work by labelling the value
+    ("The artisan describes this item as: ...") and by telling the model
+    to trust the photograph over the description when they disagree - so
+    even a determined instruction typed into this box reads as a claim
+    about the product, not as a command.
+    """
+    if not raw:
+        return ""
+    cleaned = " ".join(str(raw).split())
+    cleaned = cleaned.replace('"', "").replace("\\", "")
+    cleaned = "".join(ch for ch in cleaned if ch.isprintable())
+
+    # Every section header in this prompt is written in capitals ("MUST
+    # SURVIVE THE EDIT EXACTLY", "STRICTLY DO NOT"). Text typed into the
+    # product box cannot start a new line any more, but a run of capitals
+    # still *looks* like a header, and looking like one is most of how
+    # these things work on a model. Two or more capitalised words in a row
+    # is not how anyone names a diya, so those runs get lowercased. Single
+    # capitalised words survive, which keeps real names like "GI tagged
+    # Madhubani" or "BRASS diya" readable.
+    words = cleaned.split(" ")
+    run_start = None
+    for i in range(len(words) + 1):
+        word = words[i] if i < len(words) else ""
+        is_shouty = len(word) >= 2 and word.isupper() and word.isalpha()
+        if is_shouty:
+            if run_start is None:
+                run_start = i
+        else:
+            if run_start is not None and i - run_start >= 2:
+                for j in range(run_start, i):
+                    words[j] = words[j].lower()
+            run_start = None
+    cleaned = " ".join(words).strip()
+    if len(cleaned) > MAX_PRODUCT_NAME_CHARS:
+        cleaned = cleaned[:MAX_PRODUCT_NAME_CHARS].rsplit(" ", 1)[0].strip()
+    return cleaned
+
+
+def build_photo_prompt(category: str = "", extra_instruction: str = "",
+                       product_name: str = "") -> str:
     """
     Builds the photo-editing prompt for one specific artisan's product.
 
@@ -136,14 +199,42 @@ def build_photo_prompt(category: str = "", extra_instruction: str = "") -> str:
     object actually is, which is what stops the model from inventing a
     different product - see the module docstring.
 
+    `product_name` is what the artisan calls this specific item - "brass
+    diya", "kundan necklace", "Madhubani fish painting". It is strictly
+    better grounding than the category, because the category can only say
+    "a metal craft object" while the name says exactly which one. When it
+    is given, it leads the identity block and the category becomes the
+    supporting context rather than the whole description.
+
     An unknown or empty category degrades to the generic wording rather
     than raising, so a new category added to the frontend can never break
     Photo Studio in production.
     """
     guide = CATEGORY_PHOTO_GUIDE.get((category or "").strip(), _GENERIC)
     known = guide is not _GENERIC
+    name = _clean_product_name(product_name)
 
-    if known:
+    if name and known:
+        identity_block = (
+            f"WHAT YOU ARE LOOKING AT:\n"
+            f"The artisan describes this item as: \"{name}\".\n"
+            f"They sell {category}, so this photograph shows {guide['identity']}.\n"
+            f"Use their description to understand WHICH such object this is, and photograph it as\n"
+            f"that. It is a real, physical object that already exists - your job is to RETOUCH this\n"
+            f"photograph of it, never to design, redraw or replace the object. If their description\n"
+            f"does not match what you can actually see in the photograph, trust the photograph."
+        )
+    elif name:
+        identity_block = (
+            f"WHAT YOU ARE LOOKING AT:\n"
+            f"The artisan describes this item as: \"{name}\". This photograph shows\n"
+            f"{guide['identity']}.\n"
+            f"Use their description to understand which such object this is. It is a real, physical\n"
+            f"object that already exists - your job is to RETOUCH this photograph of it, never to\n"
+            f"design, redraw or replace the object. If their description does not match what you can\n"
+            f"actually see in the photograph, trust the photograph."
+        )
+    elif known:
         identity_block = (
             f"WHAT YOU ARE LOOKING AT:\n"
             f"The artisan sells {category}. This photograph shows {guide['identity']}.\n"
