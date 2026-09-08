@@ -79,6 +79,9 @@ def create_product(
     category: Optional[str] = Form(None),
     craft_type: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
+    features: Optional[str] = Form(None),
+    caption: Optional[str] = Form(None),
+    stock_quantity: Optional[int] = Form(None),
     status: str = Form("draft"),
     image: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
@@ -97,6 +100,9 @@ def create_product(
         category=category,
         craft_type=craft_type,
         price=price,
+        features=features,
+        caption=caption,
+        stock_quantity=stock_quantity,
         status=status,
         image_url=image_url,
     )
@@ -117,6 +123,9 @@ def update_product(
     category: Optional[str] = Form(None),
     craft_type: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
+    features: Optional[str] = Form(None),
+    caption: Optional[str] = Form(None),
+    stock_quantity: Optional[int] = Form(None),
     status: str = Form("draft"),
     image: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
@@ -136,6 +145,21 @@ def update_product(
     product.craft_type = craft_type
     product.price = price
     product.status = status
+
+    # The three catalogue-richness fields are updated ONLY when the caller
+    # actually sends them. Every other field above is overwritten
+    # unconditionally, which is fine because every existing screen submits
+    # them all - but Photo Studio saves a product by posting just the
+    # basics plus a new image. If these behaved the same way, saving an
+    # enhanced photo would silently erase the features and caption the AI
+    # Catalogue had written, and the artisan would never know why their
+    # store page went empty.
+    if features is not None:
+        product.features = features
+    if caption is not None:
+        product.caption = caption
+    if stock_quantity is not None:
+        product.stock_quantity = stock_quantity
 
     if image and image.filename:
         product.image_url = save_image(image)

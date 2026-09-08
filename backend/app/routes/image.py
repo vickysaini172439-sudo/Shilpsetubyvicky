@@ -56,6 +56,7 @@ def enhance(
     brightness: float = Form(1.15),
     contrast: float = Form(1.15),
     instruction: str = Form(""),
+    category: str = Form(""),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -87,12 +88,25 @@ def enhance(
         else:
             engine = "local"
 
+    # What kind of craft is this? The AI engines use it to identify the
+    # object instead of guessing at it, which is the single biggest driver
+    # of output quality (see services/photo_prompt.py).
+    #
+    # Preference order: the category the caller sent for THIS product
+    # (most specific - an artisan may sell more than one kind of thing),
+    # then the craft category on their business profile, which they chose
+    # when they registered and is therefore always present.
+    business = getattr(current_user, "business", None)
+    effective_category = (category or "").strip() or (
+        (business.craft_category or "") if business else ""
+    )
+
     note = ""
 
     # ---- Real AI path (OpenAI) -----------------------------------------
     if engine == "openai":
         processed, content_type, error = openai_image_service.enhance_product_photo(
-            contents, extra_instruction=instruction
+            contents, extra_instruction=instruction, category=effective_category
         )
         if processed is not None:
             headers = {
@@ -115,7 +129,7 @@ def enhance(
     # ---- Real AI path (Gemini) ------------------------------------------
     if engine == "gemini":
         processed, content_type, error = gemini_image_service.enhance_product_photo(
-            contents, extra_instruction=instruction
+            contents, extra_instruction=instruction, category=effective_category
         )
         if processed is not None:
             headers = {
