@@ -57,6 +57,7 @@ def enhance(
     contrast: float = Form(1.15),
     instruction: str = Form(""),
     category: str = Form(""),
+    product_name: str = Form(""),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -101,12 +102,19 @@ def enhance(
         (business.craft_category or "") if business else ""
     )
 
+    # What the artisan calls this exact item. Narrower than the category
+    # and therefore better grounding: the category can only say "a metal
+    # craft object", the name says "a brass diya". Sanitised in
+    # photo_prompt._clean_product_name() before it reaches the model.
+    effective_product_name = (product_name or "").strip()
+
     note = ""
 
     # ---- Real AI path (OpenAI) -----------------------------------------
     if engine == "openai":
         processed, content_type, error = openai_image_service.enhance_product_photo(
-            contents, extra_instruction=instruction, category=effective_category
+            contents, extra_instruction=instruction, category=effective_category,
+            product_name=effective_product_name,
         )
         if processed is not None:
             headers = {
@@ -129,7 +137,8 @@ def enhance(
     # ---- Real AI path (Gemini) ------------------------------------------
     if engine == "gemini":
         processed, content_type, error = gemini_image_service.enhance_product_photo(
-            contents, extra_instruction=instruction, category=effective_category
+            contents, extra_instruction=instruction, category=effective_category,
+            product_name=effective_product_name,
         )
         if processed is not None:
             headers = {

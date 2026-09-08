@@ -48,7 +48,8 @@ def _prepare_upload(image_bytes: bytes):
     return buffer.getvalue()
 
 
-def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", category: str = ""):
+def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", category: str = "",
+                          product_name: str = ""):
     """
     `category` is the artisan's craft category, passed into the prompt so
     the model knows what object it is retouching rather than guessing -
@@ -70,8 +71,9 @@ def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", categ
         return None, None, f"Could not read that image file: {exc}"
 
     # Naming the craft category in the prompt is what stops the model
-    # redrawing an unfamiliar craft as some generic object.
-    prompt = build_photo_prompt(category, extra_instruction)
+    # redrawing an unfamiliar craft as some generic object; the product
+    # name narrows it further, from "a metal craft object" to "a brass diya".
+    prompt = build_photo_prompt(category, extra_instruction, product_name)
 
     url = f"{OPENAI_API_BASE_URL}/images/edits"
 
