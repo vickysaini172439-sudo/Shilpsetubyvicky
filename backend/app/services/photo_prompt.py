@@ -65,7 +65,7 @@ CATEGORY_PHOTO_GUIDE = {
         "identity": "a handmade Indian metal craft object - such as a brass, bronze, copper or "
                     "bell-metal lamp, diya, urli, idol, bell, plate or engraved vessel",
         "keep": "the true metal tone (brass gold, copper red, oxidised black or silver) and its "
-                "natural patina, every hammered dent and engraved or repoussé line, and the real "
+                "natural patina, every hammered dent and engraved or repousse line, and the real "
                 "reflections in the metal surface",
         "staging": "light it with soft, broad, diffused light so the metal reads as metal without "
                    "blown-out hotspots or harsh mirror glare, and keep reflections clean and "
