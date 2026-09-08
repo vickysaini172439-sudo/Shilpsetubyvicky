@@ -2,16 +2,19 @@
 AI Product Photo Studio - the real-AI engine.
 
 Sends the artisan's ordinary phone photo to Google's Gemini image model
-along with a fixed, carefully written product-photography prompt, and
-gets back a clean catalogue-quality photo.
+along with a carefully written product-photography prompt, and gets back
+a clean catalogue-quality photo.
 
-Why a FIXED prompt instead of letting the user type one: the artisan
-should not have to learn prompt engineering. They press one button. The
-prompt below is the product decision - it is tuned to improve the photo
-WITHOUT altering the craft itself, which matters enormously here: the
-slight irregularities of handmade work are the value, and an AI that
-"beautifies" them into something machine-perfect would be misrepresenting
-the product to a buyer.
+The artisan never writes the prompt - they press one button. It is built
+for them by photo_prompt.build_photo_prompt() from the craft category on
+their account, so the model is told what the object actually is rather
+than left to guess at it. See that module for why guessing was producing
+such poor results.
+
+What the prompt asks for is a product decision: improve the PHOTO without
+altering the CRAFT. The slight irregularities of handmade work are the
+value, and an AI that "beautifies" them into something machine-perfect
+would be misrepresenting the product to a buyer.
 """
 
 import base64
@@ -21,7 +24,7 @@ import requests
 from PIL import Image, ImageOps
 
 from app.config import AI_API_KEY, GEMINI_API_BASE, GEMINI_IMAGE_MODEL, DEMO_MODE
-from app.services.photo_prompt import PRODUCT_PHOTO_PROMPT
+from app.services.photo_prompt import build_photo_prompt
 
 # Longest edge we upload. Keeps the request fast on a slow connection
 # and well under the API's size limits.
@@ -66,9 +69,13 @@ def _extract_image(payload: dict):
     return None, None
 
 
-def enhance_product_photo(image_bytes: bytes, extra_instruction: str = ""):
+def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", category: str = ""):
     """
     Returns (processed_bytes, content_type, error_message).
+
+    `category` is the artisan's craft category. It is passed straight into
+    the prompt so the model knows what kind of object it is retouching -
+    see photo_prompt.py for why that matters so much here.
 
     On success error_message is None. On ANY failure we return the error
     text instead of raising, so the route can fall back to the local
@@ -82,9 +89,9 @@ def enhance_product_photo(image_bytes: bytes, extra_instruction: str = ""):
     except Exception as exc:  # noqa: BLE001
         return None, None, f"Could not read that image file: {exc}"
 
-    prompt = PRODUCT_PHOTO_PROMPT
-    if extra_instruction:
-        prompt += f"\n\nADDITIONAL REQUEST FROM THE ARTISAN:\n{extra_instruction.strip()}"
+    # Naming the craft category in the prompt is what stops the model
+    # redrawing an unfamiliar craft as some generic object.
+    prompt = build_photo_prompt(category, extra_instruction)
 
     url = f"{GEMINI_API_BASE}/models/{GEMINI_IMAGE_MODEL}:generateContent"
     body = {

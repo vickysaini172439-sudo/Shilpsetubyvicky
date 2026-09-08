@@ -1,7 +1,7 @@
 """
 AI Product Photo Studio - the OpenAI engine.
 
-Mirrors gemini_image_service.py exactly (same fixed prompt from
+Mirrors gemini_image_service.py exactly (same prompt builder from
 photo_prompt.py, same return shape: (processed_bytes, content_type,
 error_message)) so routes/image.py can treat either provider
 interchangeably. OpenAI's image model is reached through the
@@ -19,7 +19,7 @@ import requests
 from PIL import Image, ImageOps
 
 from app.config import OPENAI_API_KEY, OPENAI_API_BASE_URL, OPENAI_IMAGE_MODEL, DEMO_MODE
-from app.services.photo_prompt import PRODUCT_PHOTO_PROMPT
+from app.services.photo_prompt import build_photo_prompt
 
 MAX_UPLOAD_DIMENSION = 1024
 REQUEST_TIMEOUT = 90  # image generation is slower than text
@@ -48,8 +48,12 @@ def _prepare_upload(image_bytes: bytes):
     return buffer.getvalue()
 
 
-def enhance_product_photo(image_bytes: bytes, extra_instruction: str = ""):
+def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", category: str = ""):
     """
+    `category` is the artisan's craft category, passed into the prompt so
+    the model knows what object it is retouching rather than guessing -
+    see photo_prompt.py for why that is the single biggest quality lever.
+
     Returns (processed_bytes, content_type, error_message) - same shape
     as gemini_image_service.enhance_product_photo(), so routes/image.py
     can call whichever provider is configured without an if/else on the
@@ -65,9 +69,9 @@ def enhance_product_photo(image_bytes: bytes, extra_instruction: str = ""):
     except Exception as exc:  # noqa: BLE001
         return None, None, f"Could not read that image file: {exc}"
 
-    prompt = PRODUCT_PHOTO_PROMPT
-    if extra_instruction:
-        prompt += f"\n\nADDITIONAL REQUEST FROM THE ARTISAN:\n{extra_instruction.strip()}"
+    # Naming the craft category in the prompt is what stops the model
+    # redrawing an unfamiliar craft as some generic object.
+    prompt = build_photo_prompt(category, extra_instruction)
 
     url = f"{OPENAI_API_BASE_URL}/images/edits"
 
