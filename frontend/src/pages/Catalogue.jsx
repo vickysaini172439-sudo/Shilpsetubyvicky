@@ -143,11 +143,27 @@ export default function Catalogue() {
                   {result.ai_mode === 'real' ? `${result.ai_provider_label || 'AI'} Generated` : 'Demo Mode'}
                 </span>
               </div>
+              {/* Be honest about WHY this is a template draft. This used to
+                  always say "no API key is configured", which was wrong
+                  whenever a key was configured and the call had failed -
+                  and that wrong message sent debugging in the wrong
+                  direction for hours. */}
               {result.ai_mode !== 'real' && (
-                <p className="text-xs text-gray-500 mb-3">
-                  No AI API key is configured yet, so this is a template-based draft, not a real
-                  AI translation — please review the text carefully before publishing.
-                </p>
+                <div className="mb-3">
+                  {result.ai_error ? (
+                    <>
+                      <p className="text-xs text-terracotta font-medium">
+                        The AI is set up, but the call failed — so this is a template draft.
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1 break-words">{result.ai_error}</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      No AI API key is configured yet, so this is a template-based draft, not a real
+                      AI translation — please review the text carefully before publishing.
+                    </p>
+                  )}
+                </div>
               )}
 
               <label className={labelClass}>Title (English)</label>

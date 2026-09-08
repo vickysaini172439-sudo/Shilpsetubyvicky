@@ -14,9 +14,12 @@ _resolve_text_provider() plumbing.
 
 import base64
 import io
+import logging
 
 import requests
 from PIL import Image, ImageOps
+
+logger = logging.getLogger("shilpsetu.ai")
 
 from app.config import OPENAI_API_KEY, OPENAI_API_BASE_URL, OPENAI_IMAGE_MODEL, DEMO_MODE
 from app.services.photo_prompt import build_photo_prompt
@@ -77,6 +80,15 @@ def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", categ
 
     url = f"{OPENAI_API_BASE_URL}/images/edits"
 
+    # One line on the way in, so a request that never comes back is still
+    # visible in the logs. Photo Studio hanging with no output and no log
+    # entry at all was impossible to tell apart from the request never
+    # arriving.
+    logger.info(
+        "[ai] openai image edit starting: model=%s bytes=%s prompt_chars=%s",
+        OPENAI_IMAGE_MODEL, len(upload_bytes), len(prompt),
+    )
+
     try:
         response = requests.post(
             url,
@@ -92,8 +104,15 @@ def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", categ
             timeout=REQUEST_TIMEOUT,
         )
     except requests.exceptions.Timeout:
-        return None, None, "The AI took too long to respond. Please try again."
+        logger.warning(
+            "[ai] openai image edit timed out after %ss (model=%s)", REQUEST_TIMEOUT, OPENAI_IMAGE_MODEL
+        )
+        return None, None, (
+            f"The AI took longer than {REQUEST_TIMEOUT} seconds and was given up on. "
+            "Try again, or use Basic enhance."
+        )
     except requests.exceptions.RequestException as exc:
+        logger.warning("[ai] openai image edit could not reach the API: %s", exc)
         return None, None, f"Could not reach the AI service: {exc}"
 
     if response.status_code != 200:
@@ -119,6 +138,14 @@ def enhance_product_photo(image_bytes: bytes, extra_instruction: str = "", categ
                 "generation, or the API key is invalid. Add credit at "
                 f"platform.openai.com/settings/billing. OpenAI's message: {detail or 'no further detail returned'}"
             )
+        # Log it too. The error already reaches the artisan through the
+        # X-Enhance-Note header, but only if the request completes - and
+        # when Photo Studio appeared to hang and produce nothing at all,
+        # there was no server-side record of what had happened.
+        logger.warning(
+            "[ai] openai image edit failed: HTTP %s model=%s detail=%s",
+            response.status_code, OPENAI_IMAGE_MODEL, detail[:300],
+        )
         return None, None, f"AI service error {response.status_code}: {detail}"
 
     try:
