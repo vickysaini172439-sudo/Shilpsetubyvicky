@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ProductPicker from '../components/ProductPicker.jsx'
 import { enhanceImage, getImageCapabilities, updateProduct } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
@@ -36,6 +36,22 @@ export default function PhotoStudio() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+  // What the artisan calls this exact item. The craft category can only
+  // tell the AI "a metal craft object"; this tells it "a brass diya",
+  // which is the difference between a good retouch and a redraw. Starts
+  // from the product's saved name and stays editable, because the saved
+  // name is often shorthand ("Diya 2") while the AI wants a description.
+  const [productDesc, setProductDesc] = useState('')
+
+  // Two separate file inputs behind two buttons. A single input with
+  // capture="environment" behaves differently on every platform - some
+  // browsers open the camera and give no way back to the gallery, others
+  // ignore the attribute entirely and only ever show the gallery, which
+  // is what was happening here. Asking plainly which one they want is the
+  // only version that works the same everywhere.
+  const cameraInputRef = useRef(null)
+  const galleryInputRef = useRef(null)
+
   useEffect(() => {
     getImageCapabilities(token)
       .then((c) => {
@@ -47,6 +63,10 @@ export default function PhotoStudio() {
 
   function handleFileChange(e) {
     const f = e.target.files?.[0]
+    // Clear the input's value either way, so picking the SAME file again
+    // still fires a change event - otherwise retaking a photo you just
+    // rejected does nothing and looks broken.
+    e.target.value = ''
     if (!f) return
     setFile(f)
     setOriginalPreview(URL.createObjectURL(f))
@@ -73,6 +93,10 @@ export default function PhotoStudio() {
           // craft category (an artisan may sell more than one kind of thing).
           // The backend falls back to the account category if this is empty.
           category: product?.category || '',
+          // Narrower still, and the strongest grounding we can give the
+          // image model. Falls back to the product's saved name if the
+          // artisan left the description box untouched.
+          productName: (productDesc || product?.name || '').trim(),
         },
         token
       )
@@ -125,23 +149,94 @@ export default function PhotoStudio() {
     <div>
       <ProductPicker
         selectedId={product?.id}
-        onSelect={(p) => { setProduct(p); setEnhancedPreview(null); setSaved(false); setNote('') }}
+        onSelect={(p) => {
+          setProduct(p)
+          setEnhancedPreview(null)
+          setSaved(false)
+          setNote('')
+          // Start the description from the product's saved name so the
+          // field is never empty, but leave it editable.
+          setProductDesc(p?.name || '')
+        }}
       />
 
       {product && (
         <div className="p-5">
-          <label className="block text-sm font-medium text-charcoal mb-1">1. Choose a photo</label>
+          <label className="block text-sm font-medium text-charcoal mb-1">1. Add a photo</label>
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="press rounded-xl border-2 border-forest bg-forest text-white py-3 font-semibold flex flex-col items-center gap-1"
+            >
+              <span aria-hidden="true" className="text-xl leading-none">📷</span>
+              <span className="text-sm">Take Photo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="press rounded-xl border-2 border-forest bg-white text-forest py-3 font-semibold flex flex-col items-center gap-1"
+            >
+              <span aria-hidden="true" className="text-xl leading-none">🖼️</span>
+              <span className="text-sm">From Gallery</span>
+            </button>
+          </div>
+
+          {/* Two inputs, not one. The camera one carries capture; the
+              gallery one deliberately does not. Both restrict to the
+              formats the backend actually accepts, which also nudges iOS
+              into handing over JPEG instead of HEIC. */}
           <input
+            ref={cameraInputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
             capture="environment"
             onChange={handleFileChange}
-            className="text-sm mb-4 block"
+            className="hidden"
           />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {file ? (
+            <p className="text-xs text-forest mb-4 truncate">✓ {file.name}</p>
+          ) : (
+            <p className="text-xs text-gray-500 mb-4">
+              Take a fresh photo, or pick one you already have.
+            </p>
+          )}
+
+          {/* Asking what the item is, before anything is sent. The image
+              model's biggest failure mode is not knowing what it is
+              looking at - it fills the gap by inventing something. The
+              craft category narrowed that a lot; the artisan's own words
+              for this exact piece narrow it further than anything else
+              we can give it. */}
+          {originalPreview && (
+            <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
+              <label className="block text-sm font-medium text-charcoal mb-1">
+                2. What is this? Tell the AI
+              </label>
+              <input
+                className="w-full p-3 rounded-lg border border-gray-300 focus:border-forest focus:outline-none text-base"
+                value={productDesc}
+                onChange={(e) => setProductDesc(e.target.value)}
+                placeholder="e.g. brass diya, kundan necklace, jute tote bag"
+              />
+              <p className="text-xs text-gray-500 mt-1 leading-snug">
+                Name the item in a few words. The AI photographs what you tell it, so
+                "brass oil lamp with peacock handle" gives a much better result than "diya".
+              </p>
+            </div>
+          )}
 
           {originalPreview && (
             <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
-              <p className="text-sm font-medium text-charcoal mb-2">2. Choose how to enhance</p>
+              <p className="text-sm font-medium text-charcoal mb-2">3. Choose how to enhance</p>
 
               {/* ---- Engine choice ---- */}
               <button
@@ -250,7 +345,7 @@ export default function PhotoStudio() {
           {enhancedPreview && (
             <div className="bg-white rounded-xl p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium text-charcoal">3. Before → After</p>
+                <p className="text-sm font-medium text-charcoal">4. Before → After</p>
                 {badge && (
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${badge.style}`}>
                     {badge.text}

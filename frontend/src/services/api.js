@@ -150,7 +150,15 @@ export function getTextCapabilities(token) {
 // AI background removal ran, or Demo Mode.
 export async function enhanceImage(
   file,
-  { engine = "auto", removeBg = false, brightness = 1.15, contrast = 1.15, instruction = "", category = "" },
+  {
+    engine = "auto",
+    removeBg = false,
+    brightness = 1.15,
+    contrast = 1.15,
+    instruction = "",
+    category = "",
+    productName = "",
+  },
   token
 ) {
   const formData = new FormData()
@@ -164,6 +172,10 @@ export async function enhanceImage(
   // Without it the model guesses, and a guessed craft comes back redrawn
   // as something generic - which is what "the AI ruined my photo" means.
   formData.append("category", category)
+  // What the artisan calls this exact item. Narrower than the category -
+  // "brass diya" rather than "Metal Craft" - so the model knows which
+  // object in the frame it is meant to be photographing.
+  formData.append("product_name", productName)
 
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
