@@ -51,16 +51,22 @@ GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-imag
 # there is no free tier like Gemini's).
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_API_BASE_URL = os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1")
-# "gpt-5.6-luna" - confirmed 2026-09-05 directly on the user's own
-# OpenAI business pricing dashboard ("Fast, affordable model for
-# everyday work" - exactly this app's use case: short catalogue text,
-# short chat replies, one-line insight tips). $0.20/1M input,
-# $1.20/1M output - about 25-75x cheaper than gpt-4o-mini for the kind
-# of short responses this app generates. Since it's visible on the
-# user's own account (not just a training-data guess), the earlier
-# "stay conservative" concern doesn't apply here - fall back to
-# "gpt-4o-mini" in .env only if this ever 404s for some reason.
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-luna")
+# This default was "gpt-5.6-luna" and that is almost certainly why every
+# text feature sat in Demo Mode with a perfectly good API key configured.
+#
+# The evidence: POST /ai/catalog returned 200 in under a second. A real
+# call with max_tokens=2600 takes ten seconds or more, so nothing was
+# reaching a model - the request was failing instantly and being swallowed
+# by an `except Exception: pass`, which then rendered as "No AI API key is
+# configured yet". An unknown model name is exactly the kind of thing that
+# fails in milliseconds with a 404.
+#
+# So the default is now a model that is definitely real and broadly
+# available on any account with billing. If you want a newer or cheaper
+# one, set OPENAI_MODEL in the environment and use /ai/diagnose to confirm
+# your account actually has it BEFORE trusting it - that endpoint reports
+# the real error instead of hiding it.
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 # Image edit model for the OpenAI photo-enhancement path (used by
 # openai_image_service.py). Same reasoning as above: "gpt-image-1" is
 # the established, broadly-available name; "gpt-image-2" is newer and

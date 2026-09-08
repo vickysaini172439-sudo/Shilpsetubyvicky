@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -11,6 +13,13 @@ from app.routes import (
 from app.services.seed_service import seed_market_data_if_empty
 from app.database.migrations import run_migrations
 from app.config import FRONTEND_URL
+
+# The AI modules log under "shilpsetu.ai". Give that logger an explicit
+# INFO level so those lines actually reach the Render log stream - they
+# are the only record of why an AI call failed, and for a long time there
+# was no such record at all: features fell back to Demo Mode in silence
+# and the screen blamed a missing API key.
+logging.getLogger("shilpsetu").setLevel(logging.INFO)
 
 app = FastAPI(title="ShilpSetu API", version="0.1.0")
 

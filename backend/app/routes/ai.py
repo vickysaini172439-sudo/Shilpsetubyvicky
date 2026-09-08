@@ -4,7 +4,7 @@ from typing import Optional
 
 from app.models.user import User
 from app.routes.deps import get_current_user
-from app.services.ai_service import generate_catalogue, PROVIDER_LABELS
+from app.services.ai_service import generate_catalogue, diagnose_providers, PROVIDER_LABELS
 from app.config import CATALOGUE_AI_PROVIDER, BUSINESS_ADVICE_AI_PROVIDER, _resolve_text_provider
 
 router = APIRouter(prefix="/ai", tags=["AI"])
@@ -52,3 +52,22 @@ def text_capabilities():
         "catalogue": describe(CATALOGUE_AI_PROVIDER),
         "business_advice": describe(BUSINESS_ADVICE_AI_PROVIDER),
     }
+
+
+@router.get("/diagnose")
+def diagnose(current_user: User = Depends(get_current_user)):
+    """
+    Says exactly why the AI is or is not working, by making one tiny real
+    call to each model.
+
+    This exists because there was previously no way to answer that
+    question from inside the app. The features failed silently into Demo
+    Mode, the screen blamed a missing API key, and the actual cause - a
+    model name that did not exist on the account - was invisible. Hours
+    went into guessing at something a single request could have answered.
+
+    Login is required, and the API key is never returned; only whether one
+    is present, plus the first and last few characters so you can tell two
+    keys apart without exposing either.
+    """
+    return diagnose_providers()
