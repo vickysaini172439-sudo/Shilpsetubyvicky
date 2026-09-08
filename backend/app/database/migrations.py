@@ -27,6 +27,14 @@ def run_migrations(engine):
             "security_question": "VARCHAR",
             "security_answer_hash": "VARCHAR",
         },
+        # Catalogue richness for the public storefront. All nullable, so
+        # every existing product keeps working untouched and simply has
+        # nothing extra to show until the artisan fills it in.
+        "products": {
+            "features": "TEXT",
+            "caption": "TEXT",
+            "stock_quantity": "INTEGER",
+        },
     }
 
     inspector = inspect(engine)
