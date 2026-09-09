@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import ProductPicker from '../components/ProductPicker.jsx'
+import PhotoPicker from '../components/PhotoPicker.jsx'
+import VoiceInput from '../components/VoiceInput.jsx'
+import DraftBanner from '../components/DraftBanner.jsx'
 import { enhanceImage, getImageCapabilities, updateProduct } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
+import { CRAFT_CATEGORIES } from '../constants.js'
+import { saveDraft, loadDraft, clearDraft } from '../services/drafts.js'
 
 // Friendly names for whatever engine actually ran, so the artisan always
 // knows what happened to their photo.
@@ -13,7 +18,8 @@ const ENGINE_LABELS = {
 }
 
 export default function PhotoStudio() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const speechLanguage = user?.preferred_language || 'Hindi'
 
   const [product, setProduct] = useState(null)
   const [file, setFile] = useState(null)
@@ -43,14 +49,25 @@ export default function PhotoStudio() {
   // name is often shorthand ("Diya 2") while the AI wants a description.
   const [productDesc, setProductDesc] = useState('')
 
-  // Two separate file inputs behind two buttons. A single input with
-  // capture="environment" behaves differently on every platform - some
-  // browsers open the camera and give no way back to the gallery, others
-  // ignore the attribute entirely and only ever show the gallery, which
-  // is what was happening here. Asking plainly which one they want is the
-  // only version that works the same everywhere.
-  const cameraInputRef = useRef(null)
-  const galleryInputRef = useRef(null)
+  // The category that will be sent to the AI, and it is EDITABLE here.
+  //
+  // It used to be read straight off the selected product with no way to
+  // correct it, which produced the worst output this app has shipped: an
+  // artisan photographed silver jhumka earrings while the product on
+  // screen was "Handmade Wool Cushion" in Textiles & Weaving, and the AI
+  // returned the earrings lying on a shawl it had invented to satisfy the
+  // category. The prompt no longer lets a category override the
+  // photograph (see backend/app/services/photo_prompt.py) — but the
+  // artisan still needs to be able to say "this one is jewellery",
+  // because a right category genuinely does improve the result.
+  const [category, setCategory] = useState('')
+
+  // An unfinished session found on arrival, waiting for the artisan to say
+  // whether to continue it. Deliberately NOT applied automatically:
+  // silently reviving old work is its own kind of surprise.
+  const [pendingDraft, setPendingDraft] = useState(null)
+
+  const draftKey = product ? `photo-studio:${product.id}` : null
 
   useEffect(() => {
     getImageCapabilities(token)
@@ -61,19 +78,109 @@ export default function PhotoStudio() {
       .catch(() => setCaps({ openai_available: false, gemini_available: false, background_removal_available: false }))
   }, [token])
 
-  function handleFileChange(e) {
-    const f = e.target.files?.[0]
-    // Clear the input's value either way, so picking the SAME file again
-    // still fires a change event - otherwise retaking a photo you just
-    // rejected does nothing and looks broken.
-    e.target.value = ''
-    if (!f) return
+  function clearWork() {
+    setFile(null)
+    setOriginalPreview(null)
+    setEnhancedPreview(null)
+    setEnhancedBlob(null)
+    setEngineUsed('')
+    setInstruction('')
+    setNote('')
+    setSaved(false)
+    setError('')
+  }
+
+  function handleSelectProduct(p) {
+    setProduct(p)
+    clearWork()
+    // Start the description from the product's saved name so the field is
+    // never empty, but leave it editable.
+    setProductDesc(p?.name || '')
+    setCategory(p?.category || user?.business?.craft_category || '')
+
+    // Anything left unfinished for THIS product, from before they walked
+    // away. Keyed per product so switching items cannot resurrect the
+    // wrong one.
+    const found = p ? loadDraft(`photo-studio:${p.id}`) : null
+    const d = found?.data
+    const worthOffering =
+      d &&
+      Boolean(
+        d.enhancedBlob ||
+          d.file ||
+          (d.instruction || '').trim() ||
+          ((d.productDesc || '').trim() && (d.productDesc || '').trim() !== (p?.name || '').trim()),
+      )
+    setPendingDraft(worthOffering ? found : null)
+  }
+
+  // Keep the unfinished session alive across navigation. Skipped while a
+  // draft is waiting to be answered, because the fields are showing a
+  // fresh reset at that moment and saving them would overwrite the very
+  // draft being offered.
+  const hasWork =
+    Boolean(file || enhancedBlob || instruction.trim()) ||
+    Boolean(productDesc.trim() && productDesc.trim() !== (product?.name || '').trim())
+
+  useEffect(() => {
+    if (!draftKey || pendingDraft || !hasWork) return
+    saveDraft(draftKey, {
+      file,
+      enhancedBlob,
+      productDesc,
+      category,
+      instruction,
+      engine,
+      engineUsed,
+      note,
+    })
+  }, [draftKey, pendingDraft, hasWork, file, enhancedBlob, productDesc, category, instruction, engine, engineUsed, note])
+
+  function continueDraft() {
+    const d = pendingDraft?.data || {}
+    setProductDesc(d.productDesc ?? productDesc)
+    if (d.category) setCategory(d.category)
+    setInstruction(d.instruction ?? '')
+    if (d.engine) setEngine(d.engine)
+    if (d.file) {
+      setFile(d.file)
+      setOriginalPreview(URL.createObjectURL(d.file))
+    }
+    if (d.enhancedBlob) {
+      setEnhancedBlob(d.enhancedBlob)
+      setEnhancedPreview(URL.createObjectURL(d.enhancedBlob))
+      setEngineUsed(d.engineUsed || '')
+      setNote(d.note || '')
+    }
+    setPendingDraft(null)
+  }
+
+  function discardDraft() {
+    clearDraft(draftKey)
+    setPendingDraft(null)
+    clearWork()
+    setProductDesc(product?.name || '')
+  }
+
+  function describeDraft(d) {
+    if (d?.enhancedBlob) return 'An enhanced photo you had not saved to the product yet'
+    if (d?.file) return 'A photo and the notes you gave the AI'
+    return 'The notes you gave the AI'
+  }
+
+  function handlePickPhoto(f) {
     setFile(f)
     setOriginalPreview(URL.createObjectURL(f))
     setEnhancedPreview(null)
     setEnhancedBlob(null)
     setSaved(false)
     setNote('')
+  }
+
+  // Speech arrives phrase by phrase, so add to what is already there
+  // rather than replacing it.
+  function appendTo(setter) {
+    return (text) => setter((current) => (current ? `${current} ${text}` : text))
   }
 
   async function handleEnhance() {
@@ -89,10 +196,9 @@ export default function PhotoStudio() {
           brightness,
           contrast,
           instruction,
-          // This product's own category is more specific than the account's
-          // craft category (an artisan may sell more than one kind of thing).
-          // The backend falls back to the account category if this is empty.
-          category: product?.category || '',
+          // The category the artisan confirmed on this screen — not
+          // whatever the selected product happened to be filed under.
+          category,
           // Narrower still, and the strongest grounding we can give the
           // image model. Falls back to the product's saved name if the
           // artisan left the description box untouched.
@@ -112,6 +218,8 @@ export default function PhotoStudio() {
     }
   }
 
+  const categoryChanged = Boolean(category && product && category !== product.category)
+
   async function handleSave() {
     if (!enhancedBlob || !product) return
     setError('')
@@ -123,7 +231,10 @@ export default function PhotoStudio() {
       formData.append('description_english', product.description_english || '')
       formData.append('description_hindi', product.description_hindi || '')
       formData.append('material', product.material || '')
-      formData.append('category', product.category || '')
+      // If they corrected the category to get a decent photo, the product
+      // itself was filed wrong — so fix it here rather than making them
+      // go and change it again on another screen. The button says so.
+      formData.append('category', category || product.category || '')
       formData.append('craft_type', product.craft_type || '')
       formData.append('price', product.price ?? '')
       formData.append('status', product.status)
@@ -132,6 +243,8 @@ export default function PhotoStudio() {
       const updated = await updateProduct(product.id, formData, token)
       setProduct(updated)
       setSaved(true)
+      // The work is on the product now; there is nothing left unfinished.
+      clearDraft(draftKey)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -147,60 +260,21 @@ export default function PhotoStudio() {
 
   return (
     <div>
-      <ProductPicker
-        selectedId={product?.id}
-        onSelect={(p) => {
-          setProduct(p)
-          setEnhancedPreview(null)
-          setSaved(false)
-          setNote('')
-          // Start the description from the product's saved name so the
-          // field is never empty, but leave it editable.
-          setProductDesc(p?.name || '')
-        }}
-      />
+      <ProductPicker selectedId={product?.id} onSelect={handleSelectProduct} />
+
+      {pendingDraft && (
+        <DraftBanner
+          savedAt={pendingDraft.savedAt}
+          what={describeDraft(pendingDraft.data)}
+          onContinue={continueDraft}
+          onDiscard={discardDraft}
+        />
+      )}
 
       {product && (
         <div className="p-5">
           <label className="block text-sm font-medium text-charcoal mb-1">1. Add a photo</label>
-          <div className="grid grid-cols-2 gap-3 mb-2">
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="press rounded-xl border-2 border-forest bg-forest text-white py-3 font-semibold flex flex-col items-center gap-1"
-            >
-              <span aria-hidden="true" className="text-xl leading-none">📷</span>
-              <span className="text-sm">Take Photo</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => galleryInputRef.current?.click()}
-              className="press rounded-xl border-2 border-forest bg-white text-forest py-3 font-semibold flex flex-col items-center gap-1"
-            >
-              <span aria-hidden="true" className="text-xl leading-none">🖼️</span>
-              <span className="text-sm">From Gallery</span>
-            </button>
-          </div>
-
-          {/* Two inputs, not one. The camera one carries capture; the
-              gallery one deliberately does not. Both restrict to the
-              formats the backend actually accepts, which also nudges iOS
-              into handing over JPEG instead of HEIC. */}
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            capture="environment"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          <input
-            ref={galleryInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handleFileChange}
-            className="hidden"
-          />
+          <PhotoPicker onPick={handlePickPhoto} className="mb-2" />
 
           {file ? (
             <p className="text-xs text-forest mb-4 truncate">✓ {file.name}</p>
@@ -213,23 +287,46 @@ export default function PhotoStudio() {
           {/* Asking what the item is, before anything is sent. The image
               model's biggest failure mode is not knowing what it is
               looking at - it fills the gap by inventing something. The
-              craft category narrowed that a lot; the artisan's own words
-              for this exact piece narrow it further than anything else
-              we can give it. */}
+              artisan's own words for this exact piece narrow it further
+              than anything else we can give it. */}
           {originalPreview && (
             <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
               <label className="block text-sm font-medium text-charcoal mb-1">
                 2. What is this? Tell the AI
               </label>
-              <input
-                className="w-full p-3 rounded-lg border border-gray-300 focus:border-forest focus:outline-none text-base"
-                value={productDesc}
-                onChange={(e) => setProductDesc(e.target.value)}
-                placeholder="e.g. brass diya, kundan necklace, jute tote bag"
-              />
+              <div className="flex gap-2 items-start">
+                <input
+                  className="flex-1 min-w-0 p-3 rounded-lg border border-gray-300 focus:border-forest focus:outline-none text-base"
+                  value={productDesc}
+                  onChange={(e) => setProductDesc(e.target.value)}
+                  placeholder="e.g. brass diya, kundan necklace, jute tote bag"
+                />
+                <VoiceInput
+                  compact
+                  language={speechLanguage}
+                  label="Say what this is"
+                  onTranscript={appendTo(setProductDesc)}
+                />
+              </div>
               <p className="text-xs text-gray-500 mt-1 leading-snug">
                 Name the item in a few words. The AI photographs what you tell it, so
                 "brass oil lamp with peacock handle" gives a much better result than "diya".
+              </p>
+
+              <label className="block text-sm font-medium text-charcoal mb-1 mt-4">
+                What kind of craft is it?
+              </label>
+              <select
+                className="w-full p-3 rounded-lg border border-gray-300 focus:border-forest focus:outline-none text-base"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {CRAFT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <p className="text-xs text-gray-500 mt-1 leading-snug">
+                {categoryChanged
+                  ? `Saving will also move this product to ${category}.`
+                  : 'Change this if the photo is not the kind of craft shown here — it tells the AI what to look for.'}
               </p>
             </div>
           )}
@@ -251,8 +348,9 @@ export default function PhotoStudio() {
               >
                 <span className="font-semibold text-forest">✨ AI Photo Studio</span>
                 <span className="block text-xs text-gray-600 mt-1">
-                  Real AI re-shoots your photo: clean studio background, correct lighting,
-                  sharper craft detail — while keeping the product exactly as it is.
+                  Real AI re-shoots your photo on a soft off-white cloth in daylight, removes
+                  everything that isn't your product, and sharpens the craft detail — while
+                  keeping the piece itself exactly as it is.
                 </span>
                 {aiReady && (
                   <span className="block text-xs text-gray-400 mt-1">
@@ -285,12 +383,20 @@ export default function PhotoStudio() {
                   <label className="text-sm text-gray-600">
                     Anything extra to tell the AI? (optional)
                   </label>
-                  <input
-                    className="w-full p-2 rounded-lg border border-gray-300 text-sm mt-1"
-                    value={instruction}
-                    onChange={(e) => setInstruction(e.target.value)}
-                    placeholder="e.g. show it on a plain white background"
-                  />
+                  <div className="flex gap-2 items-start mt-1">
+                    <input
+                      className="flex-1 min-w-0 p-2 rounded-lg border border-gray-300 text-sm"
+                      value={instruction}
+                      onChange={(e) => setInstruction(e.target.value)}
+                      placeholder="e.g. show it on a plain white background"
+                    />
+                    <VoiceInput
+                      compact
+                      language={speechLanguage}
+                      label="Speak your instruction"
+                      onTranscript={appendTo(setInstruction)}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -336,7 +442,8 @@ export default function PhotoStudio() {
               </button>
               {loading && (engine === 'openai' || engine === 'gemini') && (
                 <p className="text-xs text-gray-500 text-center mt-2">
-                  This can take up to a minute. Please keep this screen open.
+                  This can take up to a minute — but you can leave this screen if you need to.
+                  Your work is kept.
                 </p>
               )}
             </div>
@@ -364,6 +471,11 @@ export default function PhotoStudio() {
                 </div>
               </div>
 
+              <p className="text-xs text-gray-500 mt-2 leading-snug">
+                Not what you photographed? Correct the name and craft type in step 2 and enhance
+                again — those two are what the AI uses to recognise your piece.
+              </p>
+
               {note && <p className="text-xs text-gray-500 mt-2">{note}</p>}
               {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
               {saved && <p className="text-forest text-sm mt-3">Saved to product ✓</p>}
@@ -373,7 +485,11 @@ export default function PhotoStudio() {
                 disabled={loading}
                 className="w-full bg-forest text-white font-semibold py-3 rounded-full mt-4 shadow-md disabled:opacity-60"
               >
-                {loading ? 'Saving...' : 'Save to Product'}
+                {loading
+                  ? 'Saving...'
+                  : categoryChanged
+                    ? 'Save photo & fix category'
+                    : 'Save to Product'}
               </button>
             </div>
           )}

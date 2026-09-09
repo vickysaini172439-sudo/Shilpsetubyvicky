@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { listProducts } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 
@@ -26,10 +27,12 @@ export default function ProductPicker({ selectedId, onSelect }) {
     return (
       <div className="p-5 text-center text-gray-500">
         <p className="mb-2">You need to add a product first.</p>
-        <a href="/products" className="text-forest underline font-medium">Go to My Products</a>
+        <Link to="/products?new=1" className="text-forest underline font-medium">Add your first product</Link>
       </div>
     )
   }
+
+  const selected = products.find((p) => p.id === selectedId)
 
   return (
     <div className="p-5 pb-0">
@@ -43,6 +46,22 @@ export default function ProductPicker({ selectedId, onSelect }) {
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
       </select>
+
+      {/* The first product is picked automatically, which made this look
+          like a fixed heading rather than a choice - and an artisan with
+          one saved product had no visible way to work on anything else.
+          Naming the category makes the selection legible (it is what the
+          AI is told about the item), and the link is the way out. */}
+      <div className="flex items-baseline justify-between gap-3 mt-1">
+        <p className="text-xs text-gray-500 truncate">
+          {selected?.category
+            ? `Filed under ${selected.category}`
+            : 'Working on this product'}
+        </p>
+        <Link to="/products?new=1" className="text-xs text-forest font-medium flex-shrink-0">
+          + New product
+        </Link>
+      </div>
     </div>
   )
 }

@@ -29,6 +29,32 @@ Each category below therefore carries three things:
 
 The artisan can also name the specific item, which is better grounding
 still - see build_photo_prompt's product_name argument.
+
+WHY IT WAS REWRITTEN AGAIN (the "earrings came back as a shawl" bug)
+--------------------------------------------------------------------
+Grounding worked too well. An artisan photographed a packet of silver
+jhumka earrings while the product selected on screen happened to be
+"Handmade Wool Cushion" in "Textiles & Weaving" - so the prompt opened by
+declaring that the photograph showed "a handwoven Indian textile - such as
+a saree, dupatta, stole, shawl, rug, cushion cover...", then spent a
+paragraph on weave structure, pallu and drape. The model obeyed: it
+returned the earrings lying on a shawl it had invented.
+
+There WAS a "trust the photograph" line, but it sat at the end of one
+short block and was outweighed by everything after it. Two lines of
+hedging cannot compete with three paragraphs of confident textile
+description.
+
+So the hierarchy is now explicit and ordered, strongest first:
+
+  1. the photograph      - the subject is whatever is actually in it
+  2. the artisan's words - a hint for RECOGNISING that object, and
+                           labelled as possibly wrong
+  3. the category guide  - applied only IF the photo matches it
+
+and adding any object that is not already in the photograph is now its
+own named prohibition, because "do not add props" was never read as
+covering "the backdrop the category told you to expect".
 """
 
 # Categories match CRAFT_CATEGORIES in frontend/src/constants.js exactly.
@@ -135,8 +161,13 @@ _GENERIC = CATEGORY_PHOTO_GUIDE["Other"]
 # a photo-retouching instruction.
 MAX_PRODUCT_NAME_CHARS = 90
 
+# The artisan's free-text "anything extra to tell the AI?" box. Longer
+# than a product name, because it is a sentence rather than a label, but
+# still bounded - it is a framing note, not a place to write a new brief.
+MAX_INSTRUCTION_CHARS = 300
 
-def _clean_product_name(raw: str) -> str:
+
+def _clean_product_name(raw: str, max_chars: int = MAX_PRODUCT_NAME_CHARS) -> str:
     """
     Makes an artisan's free-text product description safe to drop into the
     prompt.
@@ -151,10 +182,11 @@ def _clean_product_name(raw: str) -> str:
       - it is length-capped
 
     The prompt itself does the rest of the work by labelling the value
-    ("The artisan describes this item as: ...") and by telling the model
-    to trust the photograph over the description when they disagree - so
-    even a determined instruction typed into this box reads as a claim
-    about the product, not as a command.
+    ("The artisan calls this item ...") under a heading that calls it a
+    hint which may be wrong, and by telling the model to trust the
+    photograph over the description when they disagree - so even a
+    determined instruction typed into this box reads as a claim about the
+    product, not as a command.
     """
     if not raw:
         return ""
@@ -184,9 +216,63 @@ def _clean_product_name(raw: str) -> str:
                     words[j] = words[j].lower()
             run_start = None
     cleaned = " ".join(words).strip()
-    if len(cleaned) > MAX_PRODUCT_NAME_CHARS:
-        cleaned = cleaned[:MAX_PRODUCT_NAME_CHARS].rsplit(" ", 1)[0].strip()
+    if len(cleaned) > max_chars:
+        cleaned = cleaned[:max_chars].rsplit(" ", 1)[0].strip()
     return cleaned
+
+
+# The look every enhanced photo should end up with.
+#
+# This is not a generic "nice studio background" - it is one specific
+# reference the artisan chose and sent: a crochet bouquet lying on a
+# softly rumpled off-white cloth, lit by window daylight from one side,
+# with a gentle shadow anchoring it to the surface, shot from a little
+# above. Warm, calm and tactile.
+#
+# It is written out in this much detail because "clean, plain, softly lit
+# studio background in a neutral tone" is four different photographs
+# depending on which model reads it, and the artisan was getting all four.
+# Naming the surface, the light, the shadow, the angle and the mood pins
+# it down to one - and pinning the BACKDROP down also closes the gap the
+# model used to fill by inventing a prop.
+HOUSE_STYLE = """HOW TO PRESENT IT (this is the house look - match it):
+- BACKGROUND: one plain, softly rumpled off-white cloth - natural cotton or linen in a warm
+  ivory or cream tone - filling the whole frame behind and beneath the product. Its folds
+  should be soft and slightly out of focus so they read as gentle texture, never as clutter.
+  Nothing else on it: no pattern, no second colour, no props, no visible table edge and no
+  hard line where a wall meets a surface.
+- LIGHT: soft diffused daylight coming from one side and slightly above, as though through a
+  window with a sheer curtain. A gentle gradient across the cloth is good. No flash, no
+  hotspots, no hard-edged shadows, no yellow or green cast from indoor tube lights.
+- SHADOW: one soft, diffused shadow falling away from the product and touching its base, so
+  the piece sits on the cloth instead of floating or looking cut out.
+- CAMERA: a little above the product and tilted slightly, close to overhead but not flat on,
+  so the piece keeps its depth. Product centred and upright, with generous even margin all
+  around it.
+- COLOUR AND DETAIL: true-to-life colours, corrected white balance, and enough sharpness that
+  the individual stitches, grain, weave, glaze or hammer marks are clearly readable.
+- The result must look like ONE real photograph taken on a cloth-covered table in daylight.
+  Not a cut-out on pure white, not a flat lightbox shot, not a computer render."""
+
+
+def _clean_instruction(raw: str) -> str:
+    """
+    The same treatment as _clean_product_name, applied to the artisan's
+    free "anything extra to tell the AI?" note.
+
+    This box now has a microphone beside it, which makes it the easiest
+    text in the app to fill with a long ramble, and dictated speech
+    arrives without any punctuation to bound it. Both of those make an
+    unbounded paste into the prompt more likely, not less - so the note
+    is collapsed to a single line, stripped of quotes and backslashes,
+    de-shouted so a run of capitals cannot pose as one of this prompt's
+    section headers, and length-capped.
+
+    It stays a request, not a command: the prompt appends it under a
+    heading that says it may only change framing, lighting and crop -
+    never what the object is.
+    """
+    return _clean_product_name(raw, max_chars=MAX_INSTRUCTION_CHARS)
 
 
 def build_photo_prompt(category: str = "", extra_instruction: str = "",
@@ -194,88 +280,99 @@ def build_photo_prompt(category: str = "", extra_instruction: str = "",
     """
     Builds the photo-editing prompt for one specific artisan's product.
 
-    `category` is the craft category from their account (or the product's
-    own category when one is set). It is used to tell the model what the
-    object actually is, which is what stops the model from inventing a
-    different product - see the module docstring.
+    The three inputs are deliberately ranked, and the prompt says so out
+    loud, because a previous version got the ranking wrong and the model
+    invented a whole shawl to satisfy a stale category (see the module
+    docstring):
 
-    `product_name` is what the artisan calls this specific item - "brass
-    diya", "kundan necklace", "Madhubani fish painting". It is strictly
-    better grounding than the category, because the category can only say
-    "a metal craft object" while the name says exactly which one. When it
-    is given, it leads the identity block and the category becomes the
-    supporting context rather than the whole description.
+      1. The photograph is the subject. Always.
+      2. `product_name` - what the artisan calls this exact item ("brass
+         diya", "silver jhumka earrings"). A hint for RECOGNISING what is
+         in the photograph, never a licence to put it there.
+      3. `category` - their craft category, or this product's own. Broader
+         than the name and more likely to be stale, since it describes
+         their shop rather than this photo. Its detailed guidance is
+         applied conditionally: "if the photograph shows such an object".
 
     An unknown or empty category degrades to the generic wording rather
     than raising, so a new category added to the frontend can never break
     Photo Studio in production.
     """
-    guide = CATEGORY_PHOTO_GUIDE.get((category or "").strip(), _GENERIC)
+    category = (category or "").strip()
+    guide = CATEGORY_PHOTO_GUIDE.get(category, _GENERIC)
     known = guide is not _GENERIC
     name = _clean_product_name(product_name)
 
+    # ---- 1. The photograph, first and unconditional -------------------
+    subject_block = (
+        "RULE ONE - WHAT YOU ARE PHOTOGRAPHING:\n"
+        "The subject is the object that is physically present in the uploaded photograph,\n"
+        "whatever that object turns out to be. Look at the photograph and identify what is\n"
+        "actually there before you do anything else. It is a real, physical object that already\n"
+        "exists and belongs to someone. Your job is to RETOUCH this photograph of it: never to\n"
+        "design it, redraw it, replace it with a different object, or place it with anything it\n"
+        "did not already come with."
+    )
+
+    # ---- 2. The artisan's words, explicitly fallible ------------------
     if name and known:
-        identity_block = (
-            f"WHAT YOU ARE LOOKING AT:\n"
-            f"The artisan describes this item as: \"{name}\".\n"
-            f"They sell {category}, so this photograph shows {guide['identity']}.\n"
-            f"Use their description to understand WHICH such object this is, and photograph it as\n"
-            f"that. It is a real, physical object that already exists - your job is to RETOUCH this\n"
-            f"photograph of it, never to design, redraw or replace the object. If their description\n"
-            f"does not match what you can actually see in the photograph, trust the photograph."
-        )
+        said = f'The artisan calls this item "{name}", and their shop sells {category}.'
     elif name:
-        identity_block = (
-            f"WHAT YOU ARE LOOKING AT:\n"
-            f"The artisan describes this item as: \"{name}\". This photograph shows\n"
-            f"{guide['identity']}.\n"
-            f"Use their description to understand which such object this is. It is a real, physical\n"
-            f"object that already exists - your job is to RETOUCH this photograph of it, never to\n"
-            f"design, redraw or replace the object. If their description does not match what you can\n"
-            f"actually see in the photograph, trust the photograph."
-        )
+        said = f'The artisan calls this item "{name}".'
     elif known:
-        identity_block = (
-            f"WHAT YOU ARE LOOKING AT:\n"
-            f"The artisan sells {category}. This photograph shows {guide['identity']}.\n"
-            f"Treat it as exactly that. It is a real, physical object that already exists - your job\n"
-            f"is to RETOUCH this photograph of it, never to design, redraw or replace the object."
+        said = f"The artisan's shop sells {category}."
+    else:
+        said = ""
+
+    if said:
+        hint_block = (
+            "\n\nWHAT THE ARTISAN SAYS THIS IS (a hint, and it may be wrong):\n"
+            f"{said}\n"
+            "This describes their shop and their own label for the item, not necessarily this\n"
+            "photograph - they may have picked the wrong item on screen, or photographed something\n"
+            "new. Use it ONLY to help you recognise the object you can already see. If it describes\n"
+            "something that is not in the photograph, ignore it completely and trust the photograph.\n"
+            "Never introduce an object into the picture because it was named here."
         )
     else:
-        identity_block = (
-            f"WHAT YOU ARE LOOKING AT:\n"
-            f"This photograph shows {guide['identity']}. It is a real, physical object that already\n"
-            f"exists - your job is to RETOUCH this photograph of it, never to design, redraw or\n"
-            f"replace the object."
+        hint_block = ""
+
+    # ---- 3. Category guidance, conditional on the photo matching ------
+    if known:
+        category_block = (
+            f"\n\nIF THE PHOTOGRAPH SHOWS {guide['identity']}, THEN ALSO:\n"
+            f"- Preserve {guide['keep']}.\n"
+            f"- Stage it this way: {guide['staging']}.\n"
+            "If the photograph shows anything else, ignore this section completely and follow only\n"
+            "the general rules below. Do not add such an object to make this section apply."
         )
+    else:
+        category_block = ""
 
     prompt = f"""You are an expert e-commerce product photographer and photo retoucher preparing a
 catalogue image of an authentic Indian handmade craft for an online marketplace.
 
-{identity_block}
+{subject_block}{hint_block}{category_block}
 
 MUST SURVIVE THE EDIT EXACTLY:
-- {guide['keep']}.
-- The product's true shape, proportions, colours, material and texture.
+- The product's true shape, proportions, colours, material and texture. The buyer must be
+  able to hold the real object beside this photograph and see the same thing. Nothing about
+  the item itself changes - only the quality of the photograph of it does.
 - Every handmade detail and small irregularity. These are the proof the item is handcrafted
   rather than factory made, and they are what the buyer is paying for. Do NOT smooth,
   straighten, symmetrise, tidy or "perfect" them.
 - The count of things: if there are three bangles, keep three; do not add or remove pieces.
 
-HOW TO PRESENT IT:
-- {guide['staging']}.
-- Replace a cluttered, dark or distracting background with a clean, plain, softly lit studio
-  background in a neutral tone that flatters the product's own colours.
-- Light the product evenly and softly, as if inside a lightbox. Remove harsh shadows,
-  blown-out highlights, camera-flash glare and the yellow/green colour cast of indoor tube lights.
-- Correct the white balance so the colours match the real object.
-- Straighten the framing, centre the product, and leave comfortable, even margin around it.
-- Increase sharpness and local clarity so the fine craft detail is clearly readable.
+{HOUSE_STYLE}
 
 REMOVE THESE UNWANTED THINGS:
+- The product is the ONLY object that may remain in the picture. Everything else that was in
+  the original photo goes, and nothing takes its place.
 - Hands, fingers, arms and people, including anyone holding or wearing the product.
+- Packaging the product is sold in but is not part of it: plastic bags and wrappers, polythene,
+  boxes, cards, price stickers and brand labels. Unwrap it visually so the object itself is seen.
 - Background clutter: other household objects, furniture edges, bedding, curtains, floors,
-  wires, cables, switchboards, plastic bags, packaging and price stickers.
+  wires, cables, switchboards.
 - Dust, lint, stray threads and hair lying on or beside the product.
 - Distracting foreground objects and anything partly cut off at the edge of the frame.
 - Reflections of the room, the photographer or the phone in any shiny or metal surface.
@@ -283,18 +380,26 @@ REMOVE THESE UNWANTED THINGS:
   with a part that belongs to it - a lid, a strap, a stand, a matching pair - keep it.
 
 STRICTLY DO NOT:
+- Add any object that was not already in the photograph. No fabric or textile item, no tray,
+  plate, stand, flower, leaf, prop, decoration or companion piece - not even one named in the
+  hint above, and not even to make the composition look nicer. The plain off-white cloth
+  described above is the backdrop and the ONLY thing that may be added to the scene.
+- Turn the subject into a different object, or photograph a different object that the hint
+  mentioned instead of the one that is really there.
+- Add a second copy of the product, or more pieces than the photograph contains.
 - Add any text, watermark, logo, label, price tag, sticker, badge or border.
-- Add props, flowers, decorations, extra objects, or a second copy of the product.
 - Change the product into a different design, colour, material or style.
 - Restyle it as a render, illustration, painting or 3D model.
 - Make the item look mass produced, plastic, glossy-artificial or computer generated.
 
 Output only the edited photograph."""
 
-    if extra_instruction and extra_instruction.strip():
+    instruction = _clean_instruction(extra_instruction)
+    if instruction:
         prompt += (
             "\n\nADDITIONAL REQUEST FROM THE ARTISAN (follow it only where it does not conflict "
-            f"with the rules above):\n{extra_instruction.strip()}"
+            "with the rules above; it can change how the object is framed, lit or cropped, but it "
+            f"can never change WHAT the object is or add anything to the picture):\n{instruction}"
         )
 
     return prompt

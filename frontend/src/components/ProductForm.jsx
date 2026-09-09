@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import VoiceInput from './VoiceInput.jsx'
+import PhotoPicker from './PhotoPicker.jsx'
 import { createProduct, updateProduct, imageUrl } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 import { CRAFT_CATEGORIES } from '../constants.js'
@@ -38,9 +39,7 @@ export default function ProductForm({ existingProduct, onSaved, onCancel }) {
     }))
   }
 
-  function handleImageChange(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function handlePickPhoto(file) {
     setImageFile(file)
     setPreview(URL.createObjectURL(file))
   }
@@ -88,7 +87,11 @@ export default function ProductForm({ existingProduct, onSaved, onCancel }) {
           onError={() => setPreview(null)}
         />
       )}
-      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="text-sm" />
+      {/* Camera as well as gallery. This screen had only a plain file
+          input, so an artisan holding the piece in one hand had to
+          photograph it, leave the app, and come back to find the file -
+          while Photo Studio, one screen away, offered the camera directly. */}
+      <PhotoPicker onPick={handlePickPhoto} />
 
       <label className={labelClass}>Product Name (English)</label>
       <input className={inputClass} name="name" value={form.name} onChange={handleChange} required />

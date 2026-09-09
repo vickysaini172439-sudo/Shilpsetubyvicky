@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ProductPicker from '../components/ProductPicker.jsx'
 import VoiceInput from '../components/VoiceInput.jsx'
+import DraftBanner from '../components/DraftBanner.jsx'
 import { generateCatalogue, updateProduct } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
+import { saveDraft, loadDraft, clearDraft } from '../services/drafts.js'
 
 export default function Catalogue() {
   const { token, user } = useAuth()
@@ -16,10 +18,57 @@ export default function Catalogue() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+  // Work left unfinished last time, waiting for the artisan to say whether
+  // to pick it up. This screen is the one that hurt most: an artisan spoke
+  // about their product, waited for the AI to write the whole catalogue,
+  // then tapped Home for a second - and every word of it was gone, with no
+  // warning and no way back. Everything here is plain text, so it is kept
+  // in localStorage too and survives a full refresh, not just navigation.
+  const [pendingDraft, setPendingDraft] = useState(null)
+
+  const draftKey = product ? `catalogue:${product.id}` : null
+
   // Speech arrives phrase by phrase, so we add to what is already there
   // instead of overwriting it.
   function appendSpoken(text) {
     setRawText((current) => (current ? `${current} ${text}` : text))
+  }
+
+  function handleSelectProduct(p) {
+    setProduct(p)
+    setResult(null)
+    setRawText('')
+    setSaved(false)
+    setError('')
+
+    // Keyed per product, so switching items cannot resurrect the wrong
+    // draft onto the wrong piece.
+    const found = p ? loadDraft(`catalogue:${p.id}`) : null
+    const d = found?.data
+    setPendingDraft(d && (d.result || (d.rawText || '').trim()) ? found : null)
+  }
+
+  // Skipped while a draft is waiting to be answered - the fields have just
+  // been reset to show a clean screen, and saving them now would overwrite
+  // the very draft being offered.
+  useEffect(() => {
+    if (!draftKey || pendingDraft) return
+    if (!result && !rawText.trim()) return
+    saveDraft(draftKey, { rawText, result })
+  }, [draftKey, pendingDraft, rawText, result])
+
+  function continueDraft() {
+    const d = pendingDraft?.data || {}
+    setRawText(d.rawText || '')
+    setResult(d.result || null)
+    setPendingDraft(null)
+  }
+
+  function discardDraft() {
+    clearDraft(draftKey)
+    setPendingDraft(null)
+    setRawText('')
+    setResult(null)
   }
 
   async function handleGenerate() {
@@ -88,6 +137,8 @@ export default function Catalogue() {
       const updated = await updateProduct(product.id, formData, token)
       setProduct(updated)
       setSaved(true)
+      // It is on the product now; nothing is left unfinished.
+      clearDraft(draftKey)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -100,7 +151,20 @@ export default function Catalogue() {
 
   return (
     <div>
-      <ProductPicker selectedId={product?.id} onSelect={(p) => { setProduct(p); setResult(null) }} />
+      <ProductPicker selectedId={product?.id} onSelect={handleSelectProduct} />
+
+      {pendingDraft && (
+        <DraftBanner
+          savedAt={pendingDraft.savedAt}
+          what={
+            pendingDraft.data?.result
+              ? 'A catalogue the AI wrote that you had not saved yet'
+              : 'What you told the AI about this product'
+          }
+          onContinue={continueDraft}
+          onDiscard={discardDraft}
+        />
+      )}
 
       {product && (
         <div className="p-5">
@@ -133,6 +197,11 @@ export default function Catalogue() {
             >
               {loading ? 'Generating catalogue...' : '✨ Create Catalogue with AI'}
             </button>
+            {loading && (
+              <p className="text-xs text-gray-500 text-center mt-2">
+                You can leave this screen if you need to — your work is kept.
+              </p>
+            )}
           </div>
 
           {result && (
