@@ -15,23 +15,40 @@ const OFFLINE_MESSAGE =
   "Could not reach the server. If the app has not been used for a while, " +
   "the server may be waking up - please wait about a minute and try again."
 
+// How long to wait on the calls an artisan makes FIRST. Render's free
+// tier sleeps after 15 minutes idle and takes roughly a minute to wake,
+// and the auth screens are where someone first touches the server - so
+// these are the calls most likely to land on a sleeping one. The ordinary
+// 30s default would give up while the server was still starting, which is
+// exactly how a new account came to be "not saved": the browser stopped
+// listening, not the backend refusing.
+const COLD_START_MS = 75000
+
 // A small wrapper around the browser's built-in "fetch" function for
 // JSON requests. It attaches the login token when we have one, and
 // throws a readable error message when the backend responds with a
 // failure status code.
-async function request(path, { method = "GET", body, token } = {}) {
+async function request(path, { method = "GET", body, token, timeoutMs = 30000 } = {}) {
   const headers = { "Content-Type": "application/json" }
   if (token) headers["Authorization"] = `Bearer ${token}`
 
   let res
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     })
   } catch (networkError) {
+    // An abort lands here too, and gets the same message on purpose: to
+    // the artisan "it gave up waiting" and "it could not connect" are the
+    // same event, and OFFLINE_MESSAGE already explains the wake-up case.
     throw new Error(OFFLINE_MESSAGE)
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   const data = await res.json().catch(() => null)
@@ -48,15 +65,19 @@ async function request(path, { method = "GET", body, token } = {}) {
 // JSON - used for creating/updating products with a photo. We do NOT
 // set a Content-Type header ourselves: the browser sets the correct
 // "multipart/form-data; boundary=..." header automatically for FormData.
-export async function requestForm(path, { method = "POST", formData, token } = {}) {
+export async function requestForm(path, { method = "POST", formData, token, timeoutMs = 60000 } = {}) {
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
 
   let res
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    res = await fetch(`${BASE_URL}${path}`, { method, headers, body: formData })
+    res = await fetch(`${BASE_URL}${path}`, { method, headers, body: formData, signal: controller.signal })
   } catch (networkError) {
     throw new Error(OFFLINE_MESSAGE)
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   const data = await res.json().catch(() => null)
@@ -77,11 +98,11 @@ export function imageUrl(path) {
 }
 
 export function registerUser(payload) {
-  return request("/auth/register", { method: "POST", body: payload })
+  return request("/auth/register", { method: "POST", body: payload, timeoutMs: COLD_START_MS })
 }
 
 export function loginUser(payload) {
-  return request("/auth/login", { method: "POST", body: payload })
+  return request("/auth/login", { method: "POST", body: payload, timeoutMs: COLD_START_MS })
 }
 
 // --- Forgot password (security question flow) ---
@@ -89,7 +110,7 @@ export function loginUser(payload) {
 // The list of questions an artisan can choose from while registering.
 // It comes from the backend so the two screens can never disagree.
 export function getSecurityQuestions() {
-  return request("/auth/security-questions")
+  return request("/auth/security-questions", { timeoutMs: COLD_START_MS })
 }
 
 // Step 1: give a phone number, get back that account's chosen question.
@@ -181,10 +202,19 @@ export async function enhanceImage(
   if (token) headers["Authorization"] = `Bearer ${token}`
 
   let res
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 90000)
   try {
-    res = await fetch(`${BASE_URL}/image/enhance`, { method: "POST", headers, body: formData })
+    res = await fetch(`${BASE_URL}/image/enhance`, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: controller.signal,
+    })
   } catch (networkError) {
     throw new Error(OFFLINE_MESSAGE)
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   if (!res.ok) {

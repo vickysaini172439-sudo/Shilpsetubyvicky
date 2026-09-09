@@ -371,9 +371,10 @@ export default function PhotoStudio() {
                   engine === 'local' ? 'border-forest bg-ivory' : 'border-gray-300 bg-white'
                 }`}
               >
-                <span className="font-semibold text-forest">🛠️ Basic enhance (works offline)</span>
+                <span className="font-semibold text-forest">🛠️ Basic enhance (always works)</span>
                 <span className="block text-xs text-gray-600 mt-1">
-                  Background removal and brightness/contrast on this computer. No internet needed.
+                  Brightness, contrast, colour and sharpness, done on our own server.
+                  No AI service needed, so this one never fails - and it is the fastest.
                 </span>
               </button>
 
@@ -422,9 +423,10 @@ export default function PhotoStudio() {
                     Remove background
                   </label>
                   {removeBg && caps?.background_removal_available === false && (
-                    <p className="text-xs text-terracotta font-medium mt-1">
-                      The background-removal engine isn't loading on this backend, so the photo
-                      will be brightened but the background kept.
+                    <p className="text-xs text-gray-600 mt-1">
+                      Background removal is not switched on for this server, so the
+                      background will be kept as it is. The rest still runs - the photo
+                      is brightened, sharpened and colour-corrected as usual.
                       {caps?.unavailable_reason ? ` (${caps.unavailable_reason})` : ''}
                     </p>
                   )}
