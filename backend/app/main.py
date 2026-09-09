@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.database.db import Base, engine, SessionLocal
 from app.models import user, business, product, pricing, market_data, chat_message  # noqa: F401
 from app.routes import (
-    auth, users, products, image, ai,
+    auth, users, products, product_images, image, ai,
     pricing as pricing_routes, business_manager, store, dashboard, market,
 )
 from app.services.seed_service import seed_market_data_if_empty
@@ -56,7 +56,9 @@ app.add_middleware(
 )
 
 # Creates all database tables the first time the backend starts, if they
-# don't already exist yet.
+# don't already exist yet. This is also what builds the product_images
+# table for the photo gallery: a brand-new table needs no migration, and
+# no existing row is read or rewritten to create one.
 Base.metadata.create_all(bind=engine)
 
 # Adds any columns that were introduced after the database file was first
@@ -80,6 +82,10 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(products.router)
+# Shares the /products prefix with the router above; it carries the
+# gallery routes, which are additional views of a product rather than
+# its cover photo.
+app.include_router(product_images.router)
 app.include_router(image.router)
 app.include_router(ai.router)
 app.include_router(pricing_routes.router)

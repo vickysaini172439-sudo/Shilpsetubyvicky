@@ -1,6 +1,17 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
+
+
+class ProductImageOut(BaseModel):
+    """One extra view of a product. Deliberately carries no bytes - only
+    where to fetch them - so listing products never serialises photos."""
+
+    id: int
+    url: str
+
+    class Config:
+        from_attributes = True
 
 
 class ProductOut(BaseModel):
@@ -18,7 +29,12 @@ class ProductOut(BaseModel):
     caption: Optional[str] = None
     stock_quantity: Optional[int] = None
     status: str
+    # The cover photo - the one on every card and thumbnail.
     image_url: Optional[str] = None
+    # Any further views of the same piece, in the artisan's chosen order.
+    # Defaults to empty, so a product saved before galleries existed
+    # deserialises exactly as it always did.
+    gallery: List[ProductImageOut] = []
     created_at: datetime
 
     class Config:

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey, DateTime, LargeBinary
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, deferred
 from datetime import datetime
 from app.database.db import Base
 
@@ -49,6 +49,11 @@ class Product(Base):
     # ("/products/<id>/image") rather than a path on a disk that does not
     # survive. Old rows still holding "/uploads/..." simply 404, and the
     # storefront falls back to the category tile for those.
+    #
+    # This is the COVER photo - the one on every card and thumbnail. Any
+    # further views of the same piece live in ProductImage below. Keeping
+    # the cover exactly where it was means nothing that already works has
+    # to change in order for a gallery to exist.
     image_data = Column(LargeBinary, nullable=True)
     image_mime = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
@@ -56,3 +61,63 @@ class Product(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship("Business", back_populates="products")
+
+    # Extra views of the same piece - the back of a shawl, the base of a
+    # pot, a close-up of the stitching. One photo cannot answer "what does
+    # it actually look like", and for a handmade object bought sight
+    # unseen that question is the whole sale.
+    gallery = relationship(
+        "ProductImage",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductImage.position, ProductImage.id",
+    )
+
+
+class ProductImage(Base):
+    """
+    One extra photo belonging to a product.
+
+    A separate table rather than more columns on `products`, because the
+    number of views a piece needs is not knowable in advance - a ring
+    needs two, a saree needs six - and columns cannot grow per row.
+
+    Being a NEW table is also what makes this safe to ship: SQLAlchemy's
+    create_all() builds it on startup, so no existing row is read, written
+    or migrated. Products that have no extra photos simply have none.
+    """
+
+    __tablename__ = "product_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # deferred() matters more than it looks. Without it, SQLAlchemy loads
+    # every column of every gallery row whenever a product is loaded - so
+    # listing twenty products would pull all their photo bytes into memory
+    # to serve a page that shows none of them. Deferred means the bytes are
+    # fetched only by the one route that actually sends them.
+    image_data = deferred(Column(LargeBinary, nullable=False))
+    image_mime = Column(String, nullable=True)
+
+    # Lets the artisan decide the order views appear in. Ties fall back to
+    # id, so rows written before this mattered still come out stable.
+    position = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    product = relationship("Product", back_populates="gallery")
+
+    @property
+    def url(self) -> str:
+        """
+        Where this photo is served from.
+
+        No cache-busting tag is needed here, unlike the cover photo: a
+        gallery row's bytes are never rewritten. Replacing a view means
+        deleting that row and adding another, which gets a new id and
+        therefore a new URL, so a cached copy can never be stale.
+        """
+        return f"/products/{self.product_id}/images/{self.id}"
