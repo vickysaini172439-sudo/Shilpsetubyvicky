@@ -122,8 +122,12 @@ export default function Products() {
       <div className="space-y-3">
         {products.map((p) => (
           <div key={p.id} className="fade-in bg-white rounded-2xl shadow-sm p-3 flex gap-3">
+            {/* Not wrapped in anything clickable, so the photo itself can
+                open full-screen - this list is where an artisan checks
+                how their own work actually looks. */}
             <ProductImage
               product={p}
+              zoomable
               className="w-24 h-24 object-cover rounded-xl flex-shrink-0"
               emojiClassName="text-3xl"
             />
