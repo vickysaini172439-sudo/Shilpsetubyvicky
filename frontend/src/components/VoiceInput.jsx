@@ -69,10 +69,11 @@ export default function VoiceInput({
   const [interim, setInterim] = useState('')
   const [error, setError] = useState('')
   const recognitionRef = useRef(null)
-  // The index of the last final result already handed to the parent.
-  // See the onresult handler below for why a running count is needed
-  // rather than the index the browser hands us.
-  const emittedUpToRef = useRef(-1)
+  // Everything already handed to the parent during this listening session,
+  // kept as the text itself rather than a position in the results list.
+  // The onresult handler below explains why the text is the only reliable
+  // record.
+  const emittedRef = useRef('')
 
   // If the artisan changes their language elsewhere, follow it.
   useEffect(() => {
@@ -98,7 +99,7 @@ export default function VoiceInput({
     setInterim('')
     // A fresh session starts a fresh results list, so nothing has been
     // emitted from it yet.
-    emittedUpToRef.current = -1
+    emittedRef.current = ''
 
     const recognition = new SpeechRecognition()
     recognition.lang = locale
@@ -107,35 +108,76 @@ export default function VoiceInput({
 
     recognition.onresult = (event) => {
       let live = ''
+      let finalText = ''
 
-      // WHY THIS LOOPS FROM ZERO AND TRACKS ITS OWN INDEX
-      // ------------------------------------------------
-      // The obvious version of this handler starts at event.resultIndex,
-      // which is meant to be "the first result that changed since last
-      // time". With continuous = true, several Android Chrome builds
-      // report 0 there on every single event instead - so every result
-      // finalised so far was handed to the parent again on each new
-      // phrase, and the text field filled up with the same words over and
-      // over. That is the repetition artisans were seeing.
+      // WHY THIS COMPARES TEXT INSTEAD OF COUNTING RESULTS
+      // --------------------------------------------------
+      // The obvious handler starts at event.resultIndex, "the first result
+      // that changed since last time". With continuous = true, several
+      // Android Chrome builds report 0 there on every event, so an
+      // index-based guard was added - remember the highest index already
+      // sent, emit anything above it.
       //
-      // event.results is cumulative for the whole session, so the fix is
-      // not to trust the browser's idea of what is new: walk the entire
-      // list and remember, ourselves, the highest index already sent.
-      // A final result is emitted exactly once no matter how many times
-      // the browser re-reports it.
+      // That was still not enough, and this is the bug artisans kept
+      // hitting: on the phones this app is actually used on, the
+      // recogniser re-reports the SAME phrase at a NEW index as it grows,
+      // each copy flagged final. "this", "this is", "this is a", "this is
+      // a wall" - every one of them sits at a higher index than the last,
+      // so every one passed the guard, and the description field filled
+      // with a staircase of its own prefixes.
+      //
+      // So do not trust the browser about what is new. Rebuild the entire
+      // final transcript on every event, compare it against what has
+      // already been sent, and emit only the part that was not there
+      // before. A growing prefix then contributes just its new tail, and a
+      // re-report contributes nothing at all - whichever way the browser
+      // chooses to behave.
+      // Collapse the staircase as we go. When one final result is a
+      // longer version of the one before it, they are the SAME phrase
+      // being refined, not two phrases - so keep the longer and throw the
+      // shorter away. Concatenating them instead is what produced
+      // "this this is this is a this is a wall" in the first place.
+      const parts = []
       for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i]
-        const text = result[0].transcript
-        if (result.isFinal) {
-          if (i > emittedUpToRef.current) {
-            emittedUpToRef.current = i
-            const clean = text.trim()
-            if (clean) onTranscript?.(clean)
-          }
+        const text = result[0].transcript.trim()
+        if (!result.isFinal) {
+          live += result[0].transcript
+          continue
+        }
+        if (!text) continue
+        const last = parts.length ? parts[parts.length - 1] : ''
+        if (last && (text.startsWith(last) || last.startsWith(text))) {
+          parts[parts.length - 1] = text.length >= last.length ? text : last
         } else {
-          live += text
+          parts.push(text)
         }
       }
+      finalText = parts.join(' ').replace(/\s+/g, ' ').trim()
+
+      const already = emittedRef.current
+      let addition = ''
+
+      if (!finalText || finalText === already) {
+        // Nothing new in this event.
+        addition = ''
+      } else if (already && finalText.startsWith(already)) {
+        // The cumulative case: this event repeats everything so far and
+        // adds to the end. Only the end is news.
+        addition = finalText.slice(already.length).trim()
+        emittedRef.current = finalText
+      } else if (already && already.startsWith(finalText)) {
+        // The recogniser has gone backwards and re-reported a shorter
+        // version of what we already sent. Nothing to add.
+        addition = ''
+      } else {
+        // A genuinely separate phrase - browsers whose results list is
+        // per-utterance rather than cumulative arrive here.
+        addition = finalText
+        emittedRef.current = already ? `${already} ${finalText}` : finalText
+      }
+
+      if (addition) onTranscript?.(addition)
       setInterim(live)
     }
 

@@ -15,20 +15,39 @@ const OFFLINE_MESSAGE =
   "Could not reach the server. If the app has not been used for a while, " +
   "the server may be waking up - please wait about a minute and try again."
 
+// Shown when WE gave up waiting, which is a different event and needs a
+// different sentence. Telling someone the server "could not be reached"
+// after it has visibly answered - their enhanced photo is on the screen -
+// reads as the app being confused, and invites them to retry immediately,
+// which is the one thing that makes a slow upload worse.
+const TIMEOUT_MESSAGE =
+  "The server is taking longer than usual to answer. It may still be " +
+  "finishing this - please wait a few seconds before trying again."
+
+// One place to decide which of the two above applies. An aborted fetch
+// rejects with an AbortError; anything else really is a dead connection.
+function connectionError(err) {
+  return new Error(err?.name === "AbortError" ? TIMEOUT_MESSAGE : OFFLINE_MESSAGE)
+}
+
 // How long to wait on the calls an artisan makes FIRST. Render's free
 // tier sleeps after 15 minutes idle and takes roughly a minute to wake,
 // and the auth screens are where someone first touches the server - so
-// these are the calls most likely to land on a sleeping one. The ordinary
-// 30s default would give up while the server was still starting, which is
-// exactly how a new account came to be "not saved": the browser stopped
-// listening, not the backend refusing.
-const COLD_START_MS = 75000
+// these are the calls most likely to land on a sleeping one. Giving up
+// early is exactly how a new account came to be "not saved": the browser
+// stopped listening, not the backend refusing.
+const COLD_START_MS = 90000
 
 // A small wrapper around the browser's built-in "fetch" function for
 // JSON requests. It attaches the login token when we have one, and
 // throws a readable error message when the backend responds with a
 // failure status code.
-async function request(path, { method = "GET", body, token, timeoutMs = 30000 } = {}) {
+//
+// Every timeout in this file is deliberately generous. The job of the
+// deadline is only to stop a dead request hanging forever - it is NOT to
+// keep the app feeling snappy, and a deadline that fires while the server
+// is still working destroys the artisan's work for no reason at all.
+async function request(path, { method = "GET", body, token, timeoutMs = 60000 } = {}) {
   const headers = { "Content-Type": "application/json" }
   if (token) headers["Authorization"] = `Bearer ${token}`
 
@@ -43,10 +62,7 @@ async function request(path, { method = "GET", body, token, timeoutMs = 30000 } 
       signal: controller.signal,
     })
   } catch (networkError) {
-    // An abort lands here too, and gets the same message on purpose: to
-    // the artisan "it gave up waiting" and "it could not connect" are the
-    // same event, and OFFLINE_MESSAGE already explains the wake-up case.
-    throw new Error(OFFLINE_MESSAGE)
+    throw connectionError(networkError)
   } finally {
     clearTimeout(timeoutId)
   }
@@ -65,7 +81,13 @@ async function request(path, { method = "GET", body, token, timeoutMs = 30000 } 
 // JSON - used for creating/updating products with a photo. We do NOT
 // set a Content-Type header ourselves: the browser sets the correct
 // "multipart/form-data; boundary=..." header automatically for FormData.
-export async function requestForm(path, { method = "POST", formData, token, timeoutMs = 60000 } = {}) {
+//
+// The default here is long on purpose. This is the call that carries an
+// enhanced photo back to the product, over a phone's mobile data, to a
+// backend that may still be waking - several megabytes uphill on a slow
+// connection. A minute is not enough, and when it fires the artisan loses
+// the photo they just waited for the AI to make.
+export async function requestForm(path, { method = "POST", formData, token, timeoutMs = 150000 } = {}) {
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
 
@@ -75,7 +97,7 @@ export async function requestForm(path, { method = "POST", formData, token, time
   try {
     res = await fetch(`${BASE_URL}${path}`, { method, headers, body: formData, signal: controller.signal })
   } catch (networkError) {
-    throw new Error(OFFLINE_MESSAGE)
+    throw connectionError(networkError)
   } finally {
     clearTimeout(timeoutId)
   }
@@ -115,7 +137,7 @@ export function getSecurityQuestions() {
 
 // Step 1: give a phone number, get back that account's chosen question.
 export function requestSecurityQuestion(phone) {
-  return request("/auth/forgot-password", { method: "POST", body: { phone } })
+  return request("/auth/forgot-password", { method: "POST", body: { phone }, timeoutMs: COLD_START_MS })
 }
 
 // Step 2: answer the question and set a new password.
@@ -123,6 +145,7 @@ export function resetPassword({ phone, answer, new_password }) {
   return request("/auth/reset-password", {
     method: "POST",
     body: { phone, answer, new_password },
+    timeoutMs: COLD_START_MS,
   })
 }
 
@@ -201,9 +224,14 @@ export async function enhanceImage(
   const headers = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
 
+  // The slowest thing the app does, by a wide margin: upload a photo,
+  // wait for a real image model to re-shoot it, download the result -
+  // on top of a possible cold start. The screen already says this takes
+  // a while and that leaving is safe, so the only job of this deadline
+  // is to stop a genuinely dead request hanging forever.
   let res
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 90000)
+  const timeoutId = setTimeout(() => controller.abort(), 210000)
   try {
     res = await fetch(`${BASE_URL}/image/enhance`, {
       method: "POST",
@@ -212,7 +240,7 @@ export async function enhanceImage(
       signal: controller.signal,
     })
   } catch (networkError) {
-    throw new Error(OFFLINE_MESSAGE)
+    throw connectionError(networkError)
   } finally {
     clearTimeout(timeoutId)
   }
@@ -232,15 +260,15 @@ export async function enhanceImage(
 }
 
 export function generateCatalogue(payload, token) {
-  return request("/ai/catalog", { method: "POST", body: payload, token })
+  return request("/ai/catalog", { method: "POST", body: payload, token, timeoutMs: 120000 })
 }
 
 export function getPricingSuggestion(payload, token) {
-  return request("/ai/pricing", { method: "POST", body: payload, token })
+  return request("/ai/pricing", { method: "POST", body: payload, token, timeoutMs: 120000 })
 }
 
 export function sendBusinessMessage(payload, token) {
-  return request("/ai/business-advice", { method: "POST", body: payload, token })
+  return request("/ai/business-advice", { method: "POST", body: payload, token, timeoutMs: 120000 })
 }
 
 export function getChatHistory(token, productId) {
