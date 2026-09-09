@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getPublicStore } from '../services/api.js'
+import { getPublicStore, productPhotos } from '../services/api.js'
 import CategoryBanner from '../components/CategoryBanner.jsx'
 import ProductImage from '../components/ProductImage.jsx'
+import ImageLightbox from '../components/ImageLightbox.jsx'
 import StoreLogo from '../components/StoreLogo.jsx'
 
 // This is the PUBLIC storefront page - anyone with the link or QR code
@@ -62,6 +63,13 @@ function ProductDetail({ product, business, onClose }) {
   const features = featureList(product)
   const description = product.description_english || product.description_hindi
 
+  // Every view of this piece, cover first. A buyer deciding on something
+  // handmade, from a photo, on a phone, cannot ask to pick it up - the
+  // other angles are the closest thing to that.
+  const photos = productPhotos(product)
+  // Which photo the full-screen viewer is showing, or null when closed.
+  const [zoomAt, setZoomAt] = useState(null)
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center"
@@ -72,12 +80,45 @@ function ProductDetail({ product, business, onClose }) {
         className="bg-ivory w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <ProductImage
-          product={product}
-          fallbackCategory={business.craft_category}
-          className="w-full h-64 object-cover"
-          emojiClassName="text-6xl"
-        />
+        {/* The hero still crops, because a consistent panel looks better
+            than a letterboxed one - but it is now a way in to the whole
+            photograph rather than the only view of it. */}
+        <div className="relative">
+          <ProductImage
+            product={product}
+            fallbackCategory={business.craft_category}
+            className="w-full h-64 object-cover"
+            emojiClassName="text-6xl"
+          />
+          {photos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setZoomAt(0)}
+              aria-label="View photo full screen"
+              className="absolute inset-0 flex items-end justify-end p-3"
+            >
+              <span className="bg-black/55 text-white text-xs font-medium px-3 py-1.5 rounded-full">
+                {photos.length > 1 ? `🔍 ${photos.length} photos` : '🔍 Tap to zoom'}
+              </span>
+            </button>
+          )}
+        </div>
+
+        {photos.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto px-5 pt-3">
+            {photos.map((photo, i) => (
+              <button
+                key={photo.id ?? i}
+                type="button"
+                onClick={() => setZoomAt(i)}
+                aria-label={`View photo ${i + 1} of ${photos.length}`}
+                className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 bg-white"
+              >
+                <img src={photo.url} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-1">
@@ -174,6 +215,15 @@ function ProductDetail({ product, business, onClose }) {
           )}
         </div>
       </div>
+
+      {zoomAt !== null && (
+        <ImageLightbox
+          photos={photos}
+          startIndex={zoomAt}
+          onClose={() => setZoomAt(null)}
+          caption={product.name}
+        />
+      )}
     </div>
   )
 }
