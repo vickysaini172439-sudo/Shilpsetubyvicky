@@ -178,6 +178,40 @@ export function deleteProduct(id, token) {
   return request(`/products/${id}`, { method: "DELETE", token })
 }
 
+// --- A product's photos ------------------------------------------------
+
+// Every photo of a product as { id, url }, cover first, ready to hand to
+// ImageLightbox. Kept here rather than in each screen so that "what counts
+// as this product's photos" has exactly one answer.
+//
+// `gallery` is absent on anything cached from before galleries existed, so
+// it is defaulted rather than assumed - an older payload must degrade to
+// "just the cover photo", never to a crash.
+export function productPhotos(product) {
+  if (!product) return []
+  const photos = []
+  if (product.image_url) {
+    photos.push({ id: "cover", url: imageUrl(product.image_url) })
+  }
+  for (const extra of product.gallery || []) {
+    if (extra?.url) photos.push({ id: extra.id, url: imageUrl(extra.url) })
+  }
+  return photos
+}
+
+// Extra views of the same piece - the back of a shawl, a close-up of the
+// stitching. Returns the whole updated product, so the caller can replace
+// its copy outright instead of merging a partial response.
+export function addProductImages(id, files, token) {
+  const formData = new FormData()
+  for (const file of files) formData.append("images", file)
+  return requestForm(`/products/${id}/images`, { method: "POST", formData, token })
+}
+
+export function deleteProductImage(id, imageId, token) {
+  return request(`/products/${id}/images/${imageId}`, { method: "DELETE", token })
+}
+
 export function getImageCapabilities(token) {
   return request("/image/capabilities", { token })
 }
