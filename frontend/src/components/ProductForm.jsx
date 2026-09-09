@@ -77,8 +77,16 @@ export default function ProductForm({ existingProduct, onSaved, onCancel }) {
       </h2>
 
       <label className={labelClass}>Product Photo</label>
+      {/* onError: a stored photo that no longer loads (an old filesystem
+          URL from before photos moved into the database) leaves the form
+          looking like a product with no photo yet, not like a bug. */}
       {preview && (
-        <img src={preview} alt="Product preview" className="w-full h-48 object-cover rounded-lg mb-2" />
+        <img
+          src={preview}
+          alt="Product preview"
+          className="w-full h-48 object-cover rounded-lg mb-2"
+          onError={() => setPreview(null)}
+        />
       )}
       <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="text-sm" />
 

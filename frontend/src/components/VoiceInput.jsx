@@ -69,6 +69,10 @@ export default function VoiceInput({
   const [interim, setInterim] = useState('')
   const [error, setError] = useState('')
   const recognitionRef = useRef(null)
+  // The index of the last final result already handed to the parent.
+  // See the onresult handler below for why a running count is needed
+  // rather than the index the browser hands us.
+  const emittedUpToRef = useRef(-1)
 
   // If the artisan changes their language elsewhere, follow it.
   useEffect(() => {
@@ -92,6 +96,9 @@ export default function VoiceInput({
 
     setError('')
     setInterim('')
+    // A fresh session starts a fresh results list, so nothing has been
+    // emitted from it yet.
+    emittedUpToRef.current = -1
 
     const recognition = new SpeechRecognition()
     recognition.lang = locale
@@ -100,14 +107,31 @@ export default function VoiceInput({
 
     recognition.onresult = (event) => {
       let live = ''
-      // Only send phrases the browser has finalised; show the rest as a
-      // live preview so the user can see it is hearing them.
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+
+      // WHY THIS LOOPS FROM ZERO AND TRACKS ITS OWN INDEX
+      // ------------------------------------------------
+      // The obvious version of this handler starts at event.resultIndex,
+      // which is meant to be "the first result that changed since last
+      // time". With continuous = true, several Android Chrome builds
+      // report 0 there on every single event instead - so every result
+      // finalised so far was handed to the parent again on each new
+      // phrase, and the text field filled up with the same words over and
+      // over. That is the repetition artisans were seeing.
+      //
+      // event.results is cumulative for the whole session, so the fix is
+      // not to trust the browser's idea of what is new: walk the entire
+      // list and remember, ourselves, the highest index already sent.
+      // A final result is emitted exactly once no matter how many times
+      // the browser re-reports it.
+      for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i]
         const text = result[0].transcript
         if (result.isFinal) {
-          const clean = text.trim()
-          if (clean) onTranscript?.(clean)
+          if (i > emittedUpToRef.current) {
+            emittedUpToRef.current = i
+            const clean = text.trim()
+            if (clean) onTranscript?.(clean)
+          }
         } else {
           live += text
         }

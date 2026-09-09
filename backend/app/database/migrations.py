@@ -19,6 +19,12 @@ Postgres and crashed the deployed backend on startup.
 
 from sqlalchemy import inspect, text
 
+# Binary columns are the one type whose SQL name genuinely differs between
+# the two databases this app runs against. Everything else in `wanted`
+# below is a plain string; this is a dict, and the loop picks the spelling
+# that matches whichever engine is connected.
+BINARY = {"postgresql": "BYTEA", "sqlite": "BLOB"}
+
 
 def run_migrations(engine):
     # table -> {column name: SQL type to add it with}
@@ -34,6 +40,15 @@ def run_migrations(engine):
             "features": "TEXT",
             "caption": "TEXT",
             "stock_quantity": "INTEGER",
+            # Photos moved off the filesystem and into the database,
+            # because Render rebuilds the filesystem on every deploy and
+            # destroyed every uploaded image. See services/stored_image.py.
+            "image_data": BINARY,
+            "image_mime": "VARCHAR",
+        },
+        "businesses": {
+            "logo_data": BINARY,
+            "logo_mime": "VARCHAR",
         },
     }
 
@@ -49,6 +64,14 @@ def run_migrations(engine):
             have = {column["name"] for column in inspector.get_columns(table)}
 
             for column, sql_type in columns.items():
-                if column not in have:
-                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
-                    print(f"[migration] added column {table}.{column}")
+                if column in have:
+                    continue
+                # A dict means the type is spelled differently per database
+                # (see BINARY above). Fall back to the Postgres spelling for
+                # any engine we have not named, since that is what is
+                # deployed - failing loudly on an unknown engine would be
+                # worse than trying the most likely answer.
+                if isinstance(sql_type, dict):
+                    sql_type = sql_type.get(engine.dialect.name, sql_type["postgresql"])
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
+                print(f"[migration] added column {table}.{column} ({sql_type})")

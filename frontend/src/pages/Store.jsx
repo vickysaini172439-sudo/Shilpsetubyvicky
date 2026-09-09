@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyStorefront, storeQrUrl, storePublicUrl } from '../services/api.js'
+import { getMyStorefront, storeQrUrl, storePublicUrl, listProducts } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 
 export default function Store() {
@@ -8,9 +8,26 @@ export default function Store() {
   const [business, setBusiness] = useState(null)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [counts, setCounts] = useState(null)
 
   useEffect(() => {
     getMyStorefront(token).then(setBusiness).catch((err) => setError(err.message))
+  }, [token])
+
+  // Only PUBLISHED products appear on the public page, and nothing in the
+  // app ever said so. An artisan would add six products, share the link,
+  // and the visitor would land on an empty shop - because every one of
+  // those products was still a draft. The warning below is the whole
+  // reason these numbers are fetched.
+  useEffect(() => {
+    listProducts(token)
+      .then((products) => {
+        setCounts({
+          total: products.length,
+          published: products.filter((p) => p.status === 'published').length,
+        })
+      })
+      .catch(() => setCounts(null))
   }, [token])
 
   async function handleShare() {
@@ -37,6 +54,24 @@ export default function Store() {
         <div className="bg-sand/30 border border-sand text-charcoal text-sm rounded-lg p-3 mb-4">
           Your store isn't published yet — visitors can't see it.{' '}
           <Link to="/digitalise" className="underline font-medium">Publish it here</Link>.
+        </div>
+      )}
+
+      {counts && counts.published === 0 && (
+        <div className="bg-sand/30 border border-sand text-charcoal text-sm rounded-lg p-3 mb-4">
+          {counts.total === 0 ? (
+            <>
+              Your store has no products yet, so visitors will see an empty page.{' '}
+              <Link to="/products" className="underline font-medium">Add your first product</Link>.
+            </>
+          ) : (
+            <>
+              {counts.total === 1 ? 'Your product is' : `All ${counts.total} of your products are`} still
+              a draft, so visitors see an empty store. Open a product and set it to{' '}
+              <strong>Published</strong> to put it on your page.{' '}
+              <Link to="/products" className="underline font-medium">Go to my products</Link>.
+            </>
+          )}
         </div>
       )}
 

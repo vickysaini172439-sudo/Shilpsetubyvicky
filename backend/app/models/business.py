@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean, LargeBinary
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database.db import Base
@@ -17,6 +17,11 @@ class Business(Base):
     slug = Column(String, unique=True, index=True, nullable=False)
 
     # Digital storefront settings (Phase 10)
+    # The logo bytes live here for the same reason product photos do -
+    # anything written to disk is destroyed on the next deploy. See
+    # services/stored_image.py.
+    logo_data = Column(LargeBinary, nullable=True)
+    logo_mime = Column(String, nullable=True)
     logo_url = Column(String, nullable=True)
     whatsapp_number = Column(String, nullable=True)
     instagram_url = Column(String, nullable=True)

@@ -7,7 +7,7 @@ import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { UI_LANGUAGES } from '../i18n/strings.js'
 
 export default function Profile() {
-  const { user, token, setUser, logout } = useAuth()
+  const { user, token, setUser, logout, syncAiLanguage } = useAuth()
   const { t, activeLanguage, setLanguage } = useLanguage()
   const navigate = useNavigate()
 
@@ -45,6 +45,21 @@ export default function Profile() {
     }
   }
 
+  // Tapping an app language also moves the AI's writing language, unless
+  // the artisan deliberately picked one the interface does not have (see
+  // syncAiLanguage in AuthContext). The dropdown below shows the AI
+  // language, so it has to follow along or the screen would contradict
+  // itself the moment the tap lands.
+  function chooseAppLanguage(code) {
+    setLanguage(code)
+    const uiCodes = UI_LANGUAGES.map((option) => option.code)
+    const current = form.preferred_language
+    if (!current || uiCodes.includes(current)) {
+      setForm((f) => ({ ...f, preferred_language: code }))
+    }
+    syncAiLanguage?.(code, uiCodes)
+  }
+
   function handleLogout() {
     logout()
     navigate('/')
@@ -73,7 +88,7 @@ export default function Profile() {
               <button
                 key={option.code}
                 type="button"
-                onClick={() => setLanguage(option.code)}
+                onClick={() => chooseAppLanguage(option.code)}
                 aria-pressed={active}
                 className={`press rounded-xl py-2 px-1 text-sm font-medium border-2 transition-colors ${
                   active

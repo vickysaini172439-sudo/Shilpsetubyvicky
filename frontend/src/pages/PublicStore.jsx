@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getPublicStore, imageUrl } from '../services/api.js'
+import { getPublicStore } from '../services/api.js'
 import CategoryBanner from '../components/CategoryBanner.jsx'
-import { themeFor } from '../theme/categoryTheme.js'
+import ProductImage from '../components/ProductImage.jsx'
+import StoreLogo from '../components/StoreLogo.jsx'
 
 // This is the PUBLIC storefront page - anyone with the link or QR code
 // can open this without logging in. It's a different route (/store/:slug)
@@ -59,7 +60,6 @@ function StockBadge({ quantity }) {
 
 function ProductDetail({ product, business, onClose }) {
   const features = featureList(product)
-  const theme = themeFor(product.category || business.craft_category)
   const description = product.description_english || product.description_hindi
 
   return (
@@ -72,16 +72,12 @@ function ProductDetail({ product, business, onClose }) {
         className="bg-ivory w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {product.image_url ? (
-          <img src={imageUrl(product.image_url)} alt={product.name} className="w-full h-64 object-cover" />
-        ) : (
-          <div
-            className="w-full h-48 flex items-center justify-center text-6xl"
-            style={{ backgroundColor: theme.color }}
-          >
-            {theme.emoji}
-          </div>
-        )}
+        <ProductImage
+          product={product}
+          fallbackCategory={business.craft_category}
+          className="w-full h-64 object-cover"
+          emojiClassName="text-6xl"
+        />
 
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-1">
@@ -231,13 +227,11 @@ export default function PublicStore() {
   return (
     <div className="min-h-screen bg-ivory">
       <CategoryBanner category={business.craft_category} className="text-white text-center py-8 px-4">
-        {business.logo_url && (
-          <img
-            src={imageUrl(business.logo_url)}
-            alt={business.business_name}
-            className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-2 border-white"
-          />
-        )}
+        <StoreLogo
+          url={business.logo_url}
+          alt={business.business_name}
+          className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-2 border-white"
+        />
         <h1 className="text-2xl font-bold">{business.business_name}</h1>
         <p className="text-sm opacity-90">{business.craft_category}</p>
         {business.location && (
@@ -285,7 +279,6 @@ export default function PublicStore() {
         ) : (
           <div className="space-y-3">
             {products.map((p) => {
-              const theme = themeFor(p.category || business.craft_category)
               const blurb = p.caption || p.description_english || p.description_hindi || ''
               const features = featureList(p)
 
@@ -296,20 +289,12 @@ export default function PublicStore() {
                   onClick={() => setSelected(p)}
                   className="w-full text-left bg-white rounded-2xl shadow-sm overflow-hidden flex gap-3 active:scale-[0.99] transition"
                 >
-                  {p.image_url ? (
-                    <img
-                      src={imageUrl(p.image_url)}
-                      alt={p.name}
-                      className="w-28 h-full min-h-[7rem] object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div
-                      className="w-28 min-h-[7rem] flex items-center justify-center text-3xl flex-shrink-0"
-                      style={{ backgroundColor: theme.color }}
-                    >
-                      {theme.emoji}
-                    </div>
-                  )}
+                  <ProductImage
+                    product={p}
+                    fallbackCategory={business.craft_category}
+                    className="w-28 h-full min-h-[7rem] object-cover flex-shrink-0"
+                    emojiClassName="text-3xl"
+                  />
 
                   <div className="flex-1 py-3 pr-3 min-w-0">
                     <p className="font-semibold text-charcoal text-sm leading-tight">{p.name}</p>

@@ -67,7 +67,14 @@ run_migrations(engine)
 with SessionLocal() as _db:
     seed_market_data_if_empty(_db)
 
-# Makes anything saved in backend/uploads/ available at a public URL.
+# Legacy. Nothing writes here any more - product photos and logos are
+# stored in the database, because Render rebuilds the filesystem on every
+# deploy and destroyed every uploaded file (see services/stored_image.py).
+#
+# The mount stays only so that old "/uploads/..." URLs still in the
+# database resolve to a clean 404 rather than a routing error. The
+# directory itself survives a fresh clone thanks to backend/uploads/.gitkeep,
+# so mounting it cannot fail at startup.
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(auth.router)

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyStorefront, updateStorefront, uploadLogo, imageUrl } from '../services/api.js'
+import { getMyStorefront, updateStorefront, uploadLogo } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
+import StoreLogo from '../components/StoreLogo.jsx'
 
 // Where to send an artisan who does not have the account yet. These are
 // the real signup pages, opened in a new tab so they never lose the form
@@ -141,9 +142,11 @@ export default function Digitalise() {
 
       <div className="bg-white rounded-xl p-4 shadow-sm">
         <label className="block text-sm font-medium text-charcoal mb-1">Business Logo</label>
-        {business.logo_url && (
-          <img src={imageUrl(business.logo_url)} alt="Logo" className="w-20 h-20 object-cover rounded-full mb-2" />
-        )}
+        <StoreLogo
+          url={business.logo_url}
+          alt="Logo"
+          className="w-20 h-20 object-cover rounded-full mb-2"
+        />
         <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleLogoChange} className="text-sm" />
 
         <label className={labelClass}>WhatsApp Number (shown publicly)</label>

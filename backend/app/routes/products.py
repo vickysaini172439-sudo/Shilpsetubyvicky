@@ -1,8 +1,8 @@
-import os
 import uuid
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.database.db import get_db
@@ -10,35 +10,64 @@ from app.models.user import User
 from app.models.product import Product
 from app.schemas.product import ProductOut
 from app.routes.deps import get_current_user
+from app.services.stored_image import prepare_image, ImageRejected, ALLOWED_UPLOAD_TYPES
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
-# Where uploaded product photos are saved on disk. main.py serves this
-# folder publicly at http://localhost:8010/uploads/... so the frontend
-# can display the images directly.
-UPLOAD_DIR = "uploads/products"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_SIZE_MB = 5
 
 
-def save_image(image: UploadFile) -> str:
-    if image.content_type not in ALLOWED_IMAGE_TYPES:
+def read_upload(image: UploadFile):
+    """
+    Turns an uploaded file into (bytes, mime) ready for the database.
+
+    This used to write the file to backend/uploads/ and return a path.
+    That path stopped resolving the moment anything redeployed, because
+    Render rebuilds the filesystem from the repo every time - so every
+    photo an artisan had ever uploaded disappeared, while the database
+    kept pointing at it. See services/stored_image.py for the full story.
+    """
+    if image.content_type not in ALLOWED_UPLOAD_TYPES:
         raise HTTPException(status_code=400, detail="Only JPG, PNG or WEBP images are allowed.")
+    try:
+        return prepare_image(image.file.read(), max_upload_mb=MAX_IMAGE_SIZE_MB)
+    except ImageRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    contents = image.file.read()
-    if len(contents) > MAX_IMAGE_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=400, detail=f"Image must be smaller than {MAX_IMAGE_SIZE_MB}MB.")
 
-    ext = (image.filename.split(".")[-1] if "." in image.filename else "jpg").lower()
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    path = os.path.join(UPLOAD_DIR, filename)
+def image_url_for(product_id: int) -> str:
+    """
+    The public URL for a product's photo, with a short random tag on the
+    end. The tag changes every time a new photo is saved, which is what
+    lets the response itself be cached for a week without an artisan
+    uploading a replacement and still seeing the old one.
+    """
+    return f"/products/{product_id}/image?v={uuid.uuid4().hex[:8]}"
 
-    with open(path, "wb") as f:
-        f.write(contents)
 
-    return f"/uploads/products/{filename}"
+@router.get("/{product_id}/image")
+def get_product_image(product_id: int, db: Session = Depends(get_db)):
+    """
+    Serves a product photo.
+
+    Deliberately PUBLIC and unauthenticated: the storefront at /store/<slug>
+    is meant to be opened by customers who have no account, and an image
+    that 401s would make every published product look broken to exactly
+    the people it is for. Only the bytes are exposed, and only for a
+    product id someone already has.
+    """
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product or not product.image_data:
+        raise HTTPException(status_code=404, detail="No image for this product.")
+
+    return Response(
+        content=product.image_data,
+        media_type=product.image_mime or "image/jpeg",
+        # The bytes at this URL only change when the artisan uploads a new
+        # photo, and doing so rewrites image_url with a fresh version tag,
+        # so this can be cached hard.
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
 
 
 def require_business(current_user: User):
@@ -88,7 +117,10 @@ def create_product(
     db: Session = Depends(get_db),
 ):
     business = require_business(current_user)
-    image_url = save_image(image) if image and image.filename else None
+
+    image_bytes = image_mime = None
+    if image and image.filename:
+        image_bytes, image_mime = read_upload(image)
 
     product = Product(
         business_id=business.id,
@@ -104,9 +136,16 @@ def create_product(
         caption=caption,
         stock_quantity=stock_quantity,
         status=status,
-        image_url=image_url,
+        image_data=image_bytes,
+        image_mime=image_mime,
     )
     db.add(product)
+    # The image URL contains the product's own id, which the database only
+    # assigns on flush - so the row has to exist before the URL can be
+    # written onto it.
+    db.flush()
+    if image_bytes:
+        product.image_url = image_url_for(product.id)
     db.commit()
     db.refresh(product)
     return product
@@ -162,7 +201,10 @@ def update_product(
         product.stock_quantity = stock_quantity
 
     if image and image.filename:
-        product.image_url = save_image(image)
+        product.image_data, product.image_mime = read_upload(image)
+        # A new URL each time, so a browser holding the previous photo in
+        # cache fetches the new one instead of showing the old.
+        product.image_url = image_url_for(product.id)
 
     db.commit()
     db.refresh(product)

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../services/AuthContext.jsx'
-import { listProducts, getReadiness, getBusinessInsight, imageUrl } from '../services/api.js'
+import { listProducts, getReadiness, getBusinessInsight } from '../services/api.js'
 import CategoryBanner from '../components/CategoryBanner.jsx'
-import { CATEGORY_THEMES } from '../theme/categoryTheme.js'
+import ProductImage from '../components/ProductImage.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 
 // Every feature the app offers, each with its own accent colour and a
@@ -149,12 +149,20 @@ export default function Dashboard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
+  }, [token])
 
+  // Fetched separately from the numbers above because it is the one thing
+  // on this screen the AI writes, so it has to be re-asked when the
+  // artisan changes the language it should be written in - otherwise
+  // switching the app from Hindi to Hinglish left yesterday's Hindi tip
+  // sitting on an otherwise Hinglish dashboard.
+  useEffect(() => {
+    setInsightLoading(true)
     getBusinessInsight(token)
       .then(setInsight)
       .catch(() => setInsight(null))
       .finally(() => setInsightLoading(false))
-  }, [token])
+  }, [token, user?.preferred_language])
 
   // Badges turn the static feature grid into a "dynamic dashboard" - each
   // tile reflects the artisan's own real data instead of just being a link.
@@ -265,24 +273,19 @@ export default function Dashboard() {
               <Link to="/products" className="text-xs text-forest font-medium">{t('common.seeAll')}</Link>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 mb-6 no-scrollbar">
-              {recentProducts.map((p) => {
-                const theme = CATEGORY_THEMES[p.category] || CATEGORY_THEMES.Other
-                return (
-                  <Link key={p.id} to="/products" className="fade-in w-28 flex-shrink-0 bg-white rounded-xl shadow-sm overflow-hidden">
-                    {p.image_url ? (
-                      <img src={imageUrl(p.image_url)} alt={p.name} className="w-full h-28 object-cover" />
-                    ) : (
-                      <div className="w-full h-28 flex items-center justify-center text-3xl" style={{ backgroundColor: theme.color }}>
-                        {theme.emoji}
-                      </div>
-                    )}
-                    <div className="p-2">
-                      <p className="text-xs font-medium text-charcoal truncate">{p.name}</p>
-                      {p.price != null && <p className="text-[11px] text-terracotta font-semibold">₹{p.price}</p>}
-                    </div>
-                  </Link>
-                )
-              })}
+              {recentProducts.map((p) => (
+                <Link key={p.id} to="/products" className="fade-in w-28 flex-shrink-0 bg-white rounded-xl shadow-sm overflow-hidden">
+                  <ProductImage
+                    product={p}
+                    className="w-full h-28 object-cover"
+                    emojiClassName="text-3xl"
+                  />
+                  <div className="p-2">
+                    <p className="text-xs font-medium text-charcoal truncate">{p.name}</p>
+                    {p.price != null && <p className="text-[11px] text-terracotta font-semibold">₹{p.price}</p>}
+                  </div>
+                </Link>
+              ))}
             </div>
           </>
         )}

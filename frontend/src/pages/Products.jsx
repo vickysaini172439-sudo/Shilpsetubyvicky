@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { listProducts, deleteProduct, imageUrl } from '../services/api.js'
+import { listProducts, deleteProduct } from '../services/api.js'
 import { useAuth } from '../services/AuthContext.jsx'
 import ProductForm from '../components/ProductForm.jsx'
-import { themeFor } from '../theme/categoryTheme.js'
+import ProductImage from '../components/ProductImage.jsx'
 
 function StatusBadge({ status }) {
   const isPublished = status === 'published'
@@ -122,16 +122,11 @@ export default function Products() {
       <div className="space-y-3">
         {products.map((p) => (
           <div key={p.id} className="fade-in bg-white rounded-2xl shadow-sm p-3 flex gap-3">
-            {p.image_url ? (
-              <img src={imageUrl(p.image_url)} alt={p.name} className="w-24 h-24 object-cover rounded-xl flex-shrink-0" />
-            ) : (
-              <div
-                className="w-24 h-24 rounded-xl flex items-center justify-center text-3xl flex-shrink-0"
-                style={{ backgroundColor: themeFor(p.category).color }}
-              >
-                {themeFor(p.category).emoji}
-              </div>
-            )}
+            <ProductImage
+              product={p}
+              className="w-24 h-24 object-cover rounded-xl flex-shrink-0"
+              emojiClassName="text-3xl"
+            />
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">

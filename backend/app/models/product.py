@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey, DateTime, LargeBinary
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database.db import Base
@@ -38,7 +38,21 @@ class Product(Base):
     stock_quantity = Column(Integer, nullable=True)
 
     status = Column(String, default="draft")  # "draft" or "published"
+
+    # --- The photo itself ---------------------------------------------
+    # These hold the actual bytes. Photos used to be written to
+    # backend/uploads/ and served from disk, which silently destroyed
+    # every image on each deploy because Render's filesystem is rebuilt
+    # from the repo - see services/stored_image.py for the evidence.
+    #
+    # image_url is kept, but it is now a route on this API
+    # ("/products/<id>/image") rather than a path on a disk that does not
+    # survive. Old rows still holding "/uploads/..." simply 404, and the
+    # storefront falls back to the category tile for those.
+    image_data = Column(LargeBinary, nullable=True)
+    image_mime = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship("Business", back_populates="products")

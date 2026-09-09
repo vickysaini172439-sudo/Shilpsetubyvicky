@@ -1,4 +1,3 @@
-import os
 import io
 import uuid
 from typing import Optional
@@ -15,6 +14,7 @@ from app.models.product import Product
 from app.schemas.product import ProductOut
 from app.routes.deps import get_current_user
 from app.config import FRONTEND_URL
+from app.services.stored_image import prepare_image, ImageRejected, ALLOWED_UPLOAD_TYPES
 
 # Two routers in one file: "business_router" is for the LOGGED-IN artisan
 # managing their own storefront settings; "store_router" is PUBLIC - no
@@ -23,9 +23,7 @@ from app.config import FRONTEND_URL
 business_router = APIRouter(prefix="/business", tags=["Storefront Settings"])
 store_router = APIRouter(prefix="/store", tags=["Public Storefront"])
 
-LOGO_UPLOAD_DIR = "uploads/logos"
-os.makedirs(LOGO_UPLOAD_DIR, exist_ok=True)
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_IMAGE_TYPES = ALLOWED_UPLOAD_TYPES
 
 
 def _business_out(business: Business) -> dict:
@@ -90,19 +88,39 @@ def upload_logo(logo: UploadFile = File(...), current_user: User = Depends(get_c
     if logo.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Only JPG, PNG or WEBP images are allowed.")
 
-    contents = logo.file.read()
-    if len(contents) > 3 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Logo must be smaller than 3MB.")
+    # Stored in the database rather than on disk. A logo written to the
+    # filesystem is destroyed by the next deploy, which is what left every
+    # storefront showing a broken image - see services/stored_image.py.
+    try:
+        business.logo_data, business.logo_mime = prepare_image(logo.file.read(), max_upload_mb=3)
+    except ImageRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    ext = (logo.filename.split(".")[-1] if "." in logo.filename else "jpg").lower()
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    with open(os.path.join(LOGO_UPLOAD_DIR, filename), "wb") as f:
-        f.write(contents)
-
-    business.logo_url = f"/uploads/logos/{filename}"
+    # The tag changes on every upload so a cached copy of the old logo is
+    # never shown after a new one is saved.
+    business.logo_url = f"/store/{business.slug}/logo?v={uuid.uuid4().hex[:8]}"
     db.commit()
     db.refresh(business)
     return _business_out(business)
+
+
+@store_router.get("/{slug}/logo")
+def get_store_logo(slug: str, db: Session = Depends(get_db)):
+    """
+    Serves a business logo. Public and unauthenticated, like the storefront
+    it appears on - a customer opening a shared link has no account, and a
+    logo that 401s would make the page look broken to exactly the people
+    it is meant for.
+    """
+    business = db.query(Business).filter(Business.slug == slug).first()
+    if not business or not business.logo_data:
+        raise HTTPException(status_code=404, detail="No logo for this store.")
+
+    return Response(
+        content=business.logo_data,
+        media_type=business.logo_mime or "image/jpeg",
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
 
 
 @store_router.get("/{slug}")
